@@ -6,7 +6,7 @@ from tkinter import filedialog
 
 selected_y = ["בוגר"]
 selected_x = ["טיפול"]
-root = Tk()
+root = CTk()
 root.title('Application')
 
 
@@ -28,7 +28,7 @@ def read_file():
         print(f"P-value: {p_value}")
 
 
-my_button = Button(root, text="Open File", command=read_file)
+my_button = CTkButton(root, text="Open File", command=read_file)
 my_button.pack()
 root.mainloop()
 
