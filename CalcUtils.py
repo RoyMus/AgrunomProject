@@ -27,3 +27,29 @@ def GetLowerAndUpperCl(dataset):
     tAsteriskVal = FindTAsteriskValue(len(dataset))
     me = CalcMarginOfError(len(dataset), std, tAsteriskVal)
     return (mean - me, mean + me)
+
+def GetStandardError(datasetLength, std):
+    return std / math.sqrt(datasetLength)
+
+def GetStandardErrorDifference(firstDatasetSE, firstDatasetLength, secondDatasetSE, secondDatasetLength):
+    return math.sqrt((math.pow(firstDatasetSE, 2) / firstDatasetLength) + (math.pow(secondDatasetSE, 2) / secondDatasetLength))
+
+def GetLSD(tAsteriskVal, SEDiff):
+    return tAsteriskVal * SEDiff
+
+def GetTStatistic(firstDatasetMean, secondDatasetMean, SEDiff):
+    return (firstDatasetMean - secondDatasetMean) / SEDiff
+
+def IsCriticalDifference(tStatistic, tAsteriskValue):
+    return math.fabs(tStatistic) > tAsteriskValue
+
+def StudentsT(firstDatasetMean, secondDatasetMean, LSD):
+    return (firstDatasetMean - secondDatasetMean) / LSD
+
+
+DS = [12, 8, 6, 6]
+DS2 = [2, 1, 2, 5]
+
+
+print(GetLowerAndUpperCl(DS2)[0] - GetLowerAndUpperCl(DS)[0])
+print(GetLowerAndUpperCl(DS2)[1] - GetLowerAndUpperCl(DS)[1])
