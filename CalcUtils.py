@@ -1,5 +1,8 @@
 import math
+
+import numpy as np
 from scipy.stats import t
+
 
 def GetMean(dataset):
     sum = 0
@@ -8,6 +11,7 @@ def GetMean(dataset):
 
     return sum / len(dataset)
 
+
 def CalcStd(dataset, mean):
     deltaSumSquared = 0
     for number in dataset:
@@ -15,11 +19,14 @@ def CalcStd(dataset, mean):
 
     return math.sqrt(deltaSumSquared / (len(dataset) - 1))
 
+
 def FindTAsteriskValue(datasetsLength):
     return t.ppf(1 - 0.025, datasetsLength - 1)
 
+
 def CalcMarginOfError(datasetsLength, std, tAsterisk):
     return tAsterisk * std / math.sqrt(datasetsLength)
+
 
 def GetLowerAndUpperCl(dataset):
     mean = GetMean(dataset)
@@ -28,28 +35,34 @@ def GetLowerAndUpperCl(dataset):
     me = CalcMarginOfError(len(dataset), std, tAsteriskVal)
     return (mean - me, mean + me)
 
+
 def GetStandardError(datasetLength, std):
     return std / math.sqrt(datasetLength)
 
-def GetStandardErrorDifference(firstDatasetSE, firstDatasetLength, secondDatasetSE, secondDatasetLength):
-    return math.sqrt((math.pow(firstDatasetSE, 2) / firstDatasetLength) + (math.pow(secondDatasetSE, 2) / secondDatasetLength))
 
-def GetLSD(tAsteriskVal, SEDiff):
-    return tAsteriskVal * SEDiff
+def GetStandardErrorDifference(firstDatasetSE, firstDatasetLength, secondDatasetSE, secondDatasetLength):
+    return math.sqrt(
+        (math.pow(firstDatasetSE, 2) / firstDatasetLength) + (math.pow(secondDatasetSE, 2) / secondDatasetLength))
+
+
+def GetLSD(t_critical, mse,sampleSize):
+    return t_critical * np.sqrt(2 * mse / sampleSize)
+
 
 def GetTStatistic(firstDatasetMean, secondDatasetMean, SEDiff):
-    return (firstDatasetMean - secondDatasetMean) / SEDiff
+    return math.fabs(firstDatasetMean - secondDatasetMean) / SEDiff
+
 
 def IsCriticalDifference(tStatistic, tAsteriskValue):
     return math.fabs(tStatistic) > tAsteriskValue
 
+
 def StudentsT(firstDatasetMean, secondDatasetMean, LSD):
-    return (firstDatasetMean - secondDatasetMean) / LSD
+    return math.fabs(firstDatasetMean - secondDatasetMean) - LSD
 
 
 DS = [12, 8, 6, 6]
 DS2 = [2, 1, 2, 5]
-
 
 print(GetLowerAndUpperCl(DS2)[0] - GetLowerAndUpperCl(DS)[0])
 print(GetLowerAndUpperCl(DS2)[1] - GetLowerAndUpperCl(DS)[1])
