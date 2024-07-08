@@ -64,32 +64,15 @@ class AgrunomProjectApplication(CTkFrame):
 
                 # Calculate LSD
                 lsd = t_critical * np.sqrt(2 * mse / n)
-                se_diff = lsd / t_critical
                 print(f'\nLeast Significant Difference (LSD): {lsd}')
                 # Dictionary to store the results
                 treatment_significant_dict = {treatment: [] for treatment in df['Treatment'].unique()}
 
                 # Calculate means for each treatment
                 treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
-
-                def get_standard_error_diff():
-                    return np.sqrt(2 * mse / n)
-
-                # Function to get the t-statistic and check if it's a critical difference
-                def get_t_statistic(treatment1, treatment2):
-                    mean1 = df[df['Treatment'] == treatment1]['Value'].mean()
-                    mean2 = df[df['Treatment'] == treatment2]['Value'].mean()
-                    sed = get_standard_error_diff()
-                    t_stat = abs(mean1 - mean2) / sed
-                    is_critical = t_stat > t_critical
-                    return t_stat, is_critical
-
-                # Populate the dictionary with comparisons
-                for treatment1, treatment2 in combinations(treatment_means.keys(), 2):
-                    _, is_significant = get_t_statistic(treatment1, treatment2)
-                    treatment_significant_dict[treatment1].append((treatment2, is_significant))
-                    treatment_significant_dict[treatment2].append((treatment1, is_significant))
-
+                treatment_means = {r: treatment_means[r] for r in
+                                   sorted(treatment_means, key=treatment_means.get, reverse=True)}
+                RecurseFunc(treatment_means, t_critical, mse, n)
 
     def read_file(self):
         filename = filedialog.askopenfilename(initialdir="/", title="Select file")
@@ -122,6 +105,63 @@ class AgrunomProjectApplication(CTkFrame):
                 current_col += 1
             calc_button = CTkButton(self.root, text="Calculate", command=self.print_table)
             calc_button.grid(row=last_row + line_break + 1, column=0)
+
+
+def get_standard_error_diff(setsStandardError, minimumSampleSize):
+    return np.sqrt(2 * setsStandardError / minimumSampleSize)
+
+
+# Function to get the t-statistic and check if it's a critical difference
+def get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize, firstTreatmentMean, secondTreatmentMean):
+    sed = get_standard_error_diff(setsStandardError, minimumSampleSize)
+    t_stat = abs(firstTreatmentMean - secondTreatmentMean) / sed
+    is_critical = t_stat > t_critical_value
+    return t_stat, is_critical
+
+
+def RecurseFunc(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize):
+    keys = list(SortedTreatementDictionary.keys())
+    myDict = {key: set() for key in keys}
+    myDict[keys[0]] = 'A'
+    LetterCounter = 'A'
+    Func(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize, myDict, keys,
+         LetterCounter)
+    print(myDict)
+
+
+def Func(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize, myDict, keys,
+         LetterCounter):
+    for index, key in enumerate(keys[1:]):
+        _, is_critical_dif = get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize,
+                                             SortedTreatementDictionary[key], SortedTreatementDictionary[keys[0]])
+
+        if is_critical_dif:
+            LetterCounter = IncrementLetterCounter(LetterCounter)
+            myDict[key].add(LetterCounter)
+            for secondKey in keys[1:]:
+                _, is_critical_dif_second = get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize,
+                                                            SortedTreatementDictionary[key],
+                                                            SortedTreatementDictionary[secondKey])
+                if not is_critical_dif_second:
+                    myDict[secondKey].add(LetterCounter)
+
+            Func(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize, myDict,
+                 keys[index + 1:], LetterCounter)
+            return
+
+        myDict[key].add(LetterCounter)
+
+
+
+def RecursiveFunc(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize, dict):
+    LetterCounter = 'A'
+    keys = list(SortedTreatementDictionary.keys())
+
+
+def IncrementLetterCounter(LetterCounter):
+    AsciiOfLetter = ord(LetterCounter)
+    IncrementedLettersAscii = AsciiOfLetter + 1
+    return chr(IncrementedLettersAscii)
 
 
 if __name__ == '__main__':
