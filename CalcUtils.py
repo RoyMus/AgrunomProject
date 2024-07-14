@@ -36,6 +36,59 @@ def GetLowerAndUpperCl(dataset):
     return (mean - me, mean + me)
 
 
+def get_standard_error_diff(setsStandardError, minimumSampleSize):
+    return np.sqrt(2 * setsStandardError / minimumSampleSize)
+
+
+# Function to get the t-statistic and check if it's a critical difference
+def get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize, firstTreatmentMean, secondTreatmentMean):
+    sed = get_standard_error_diff(setsStandardError, minimumSampleSize)
+    t_stat = abs(firstTreatmentMean - secondTreatmentMean) / sed
+    is_critical = t_stat > t_critical_value
+    return t_stat, is_critical
+
+
+def calculate_significant_letters(SortedTreatementDictionary, t_critical_value, setsStandardError, minimumSampleSize):
+    keys = list(SortedTreatementDictionary.keys())
+    sigByKey = {key: set() for key in keys}
+    sigByKey[keys[0]] = 'A'
+    LetterCounter = 'A'
+    calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value, setsStandardError,
+                                           minimumSampleSize, sigByKey, keys,
+                                           LetterCounter)
+    return sigByKey
+
+
+def calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value, setsStandardError,
+                                           minimumSampleSize, sigByKey, keys,
+                                           LetterCounter):
+    def IncrementLetterCounter(LetterCounter):
+        AsciiOfLetter = ord(LetterCounter)
+        IncrementedLettersAscii = AsciiOfLetter + 1
+        return chr(IncrementedLettersAscii)
+
+    for index, key in enumerate(keys[1:]):
+        _, is_critical_dif = get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize,
+                                             SortedTreatementDictionary[key], SortedTreatementDictionary[keys[0]])
+
+        if is_critical_dif:
+            LetterCounter = IncrementLetterCounter(LetterCounter)
+            sigByKey[key].add(LetterCounter)
+            for secondKey in keys[1:]:
+                _, is_critical_dif_second = get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize,
+                                                            SortedTreatementDictionary[key],
+                                                            SortedTreatementDictionary[secondKey])
+                if not is_critical_dif_second:
+                    sigByKey[secondKey].add(LetterCounter)
+
+            calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value, setsStandardError,
+                                                   minimumSampleSize, sigByKey,
+                                                   keys[index + 1:], LetterCounter)
+            return
+
+        sigByKey[key].add(LetterCounter)
+
+
 def GetStandardError(datasetLength, std):
     return std / math.sqrt(datasetLength)
 
@@ -45,7 +98,7 @@ def GetStandardErrorDifference(firstDatasetSE, firstDatasetLength, secondDataset
         (math.pow(firstDatasetSE, 2) / firstDatasetLength) + (math.pow(secondDatasetSE, 2) / secondDatasetLength))
 
 
-def GetLSD(t_critical, mse,sampleSize):
+def GetLSD(t_critical, mse, sampleSize):
     return t_critical * np.sqrt(2 * mse / sampleSize)
 
 
@@ -61,8 +114,4 @@ def StudentsT(firstDatasetMean, secondDatasetMean, LSD):
     return math.fabs(firstDatasetMean - secondDatasetMean) - LSD
 
 
-DS = [12, 8, 6, 6]
-DS2 = [2, 1, 2, 5]
 
-print(GetLowerAndUpperCl(DS2)[0] - GetLowerAndUpperCl(DS)[0])
-print(GetLowerAndUpperCl(DS2)[1] - GetLowerAndUpperCl(DS)[1])
