@@ -1,5 +1,3 @@
-import itertools
-from itertools import combinations
 from pathlib import Path
 import pandas as pd
 from customtkinter import *
@@ -10,7 +8,16 @@ from statsmodels.formula.api import ols
 from scipy import stats
 import re
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import scikit_posthocs as sp
+from openpyxl import load_workbook
+from openpyxl.styles import Font, Border, Side, Alignment
+import shutil
+
+
+# Define a custom sorting key function
+def custom_sort_key(val):
+    if val == 'UTC':
+        return (0, '')  # Make "UTC" come first
+    return (1, int(val))  # Then sort by numeric values
 
 
 class ScrollableCheckBoxFrame(CTkScrollableFrame):
@@ -85,8 +92,52 @@ def reverse_hebrew_sentence(sentence):
     return reversed_sentence
 
 
+def append_df_to_excel(filename, df, sheet_name='Sheet1'):
+    path = Path(filename)
+    output_file = path.with_stem(f"{path.stem}(app_generated)")
+    if not Path(output_file).is_file():
+        output_path = shutil.copy(filename, output_file)
+    else:
+        output_path = output_file
+    # Try to open an existing workbook
+    try:
+        book = load_workbook(output_path)
+        writer = pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='overlay')
+        writer.workbook = book
+        if sheet_name in writer.workbook.sheetnames:
+            startrow = writer.workbook[sheet_name].max_row
+        else:
+            startrow = 0
+    except FileNotFoundError:
+        # File does not exist yet, create a new one
+        writer = pd.ExcelWriter(output_path, engine='openpyxl', mode='w')
+        startrow = 0
+    # Write the dataframe to the Excel file
+    df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + 1, index=False, header=True)
+    writer.close()
+    # Reload the workbook and the sheet to apply formatting
+    book = load_workbook(output_path)
+    sheet = book[sheet_name]
+
+    # Apply font and borders
+    font = Font(name='David', size=12)
+    border = Border(left=Side(style='thin', color='000000'),
+                    right=Side(style='thin', color='000000'),
+                    top=Side(style='thin', color='000000'),
+                    bottom=Side(style='thin', color='000000'))
+    alignment = Alignment(horizontal='center')
+
+    for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
+        for cell in row:
+            cell.font = font
+            cell.border = border
+            cell.alignment = alignment
+    book.save(output_path)
+
+
 class AgrunomProjectApplication(CTkFrame):
     def __init__(self, root):
+        self.filename = None
         set_appearance_mode("light")  # Modes: system (default), light, dark
         set_default_color_theme("green")
         # Themes: blue (default), dark-blue, green
@@ -99,7 +150,8 @@ class AgrunomProjectApplication(CTkFrame):
         self.upper_frame.grid(row=0, column=0, columnspan=2)
         self.scrollable_checkbox_frame = None
         self.value_inside = None
-        self.df = None
+        self.input_df = None
+        self.output_df = None
         self.root = root
         read_file_button = CTkButton(self.upper_frame, text="Open File", command=self.read_file)
         read_file_button.grid(row=0, column=0, columnspan=2, pady=10)
@@ -120,48 +172,62 @@ class AgrunomProjectApplication(CTkFrame):
     def calculate_students_t(self):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
-        for label in self.scrollable_checkbox_frame.get_checked_items():
-            df = pd.DataFrame({'Treatment': self.df[x_value], 'Value': self.df[label]})
-            print("DataFrame:")
-            print(df)
-            df['Value'] = pd.to_numeric(df['Value'])
-            df['Treatment'] = df['Treatment'].astype(str)
-            if block != "None":
-                df["Block"] = self.df[block]
-                model = ols('Value ~ C(Treatment) + C(Block)', data=df).fit()
-            else:
-                model = ols('Value ~ C(Treatment)', data=df).fit()
+        items = self.scrollable_checkbox_frame.get_checked_items()
+        self.output_dict = {}
+        output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
+                          "14DAT sig"]
+        index = 0
+        for label in items:
+            for col in self.input_df.columns:
+                if label != col.split('.')[0]:
+                    continue
+                df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value': self.input_df[col]})
+                df['Value'] = pd.to_numeric(df['Value'])
+                df['Treatment'] = df['Treatment'].astype(str)
+                if block != "None":
+                    df["Block"] = self.input_df[block]
+                    model = ols('Value ~ C(Treatment) + C(Block)', data=df).fit()
+                else:
+                    model = ols('Value ~ C(Treatment)', data=df).fit()
 
-            # Perform ANOVA
-            anova_table = sm.stats.anova_lm(model, typ=2)
+                # Perform ANOVA
+                anova_table = sm.stats.anova_lm(model, typ=2)
 
-            # Calculate Mean Squared Error (MSE)
-            mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
+                # Calculate Mean Squared Error (MSE)
+                mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
 
-            # Number of samples per group (assuming equal sample size)
-            n = df['Treatment'].value_counts().min()  # Use the minimum count in case of unequal sizes
+                # Number of samples per group (assuming equal sample size)
+                n = df['Treatment'].value_counts().min()  # Use the minimum count in case of unequal sizes
 
-            # Degrees of freedom for error
-            df_error = anova_table['df']['Residual']
+                # Degrees of freedom for error
+                df_error = anova_table['df']['Residual']
 
-            # Significance level
-            alpha = 0.05
+                # Significance level
+                alpha = 0.05
 
-            # Critical t-value
-            t_critical = stats.t.ppf(1 - alpha / 2, df_error)
+                # Critical t-value
+                t_critical = stats.t.ppf(1 - alpha / 2, df_error)
 
-            # Calculate means for each treatment
-            treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
-            treatment_means = {r: treatment_means[r] for r in
-                               sorted(treatment_means, key=treatment_means.get, reverse=True)}
-            sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
-            print(sigByKey)
+                # Calculate means for each treatment
+                treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
+                treatment_means = {r: treatment_means[r] for r in
+                                   sorted(treatment_means, key=treatment_means.get, reverse=True)}
+                sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
+                index = index % len(output_columns)
+                self.output_dict[output_columns[index]] = list(treatment_means.values())
+                self.output_dict[output_columns[index + 1]] = ["".join(sorted(value)) for value in sigByKey.values()]
+                index += 2
+
+            self.output_df = pd.DataFrame(self.output_dict)
+            self.output_df.insert(0, label, treatment_means.keys())
+            self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
+            append_df_to_excel(self.filename, self.output_df, "טבלאות")
 
     def calculate_tukey_hsd(self):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
         for label in self.scrollable_checkbox_frame.get_checked_items():
-            df = pd.DataFrame({'Treatment': self.df[x_value], 'Value': self.df[label]})
+            df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value': self.input_df[label]})
             print("DataFrame:")
             print(df)
             df['Value'] = pd.to_numeric(df['Value'])
@@ -185,33 +251,39 @@ class AgrunomProjectApplication(CTkFrame):
     def read_file(self):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
                                                    filetypes=[("Excel files", ".xlsx .xls")])
+        if not self.filename:
+            return
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=reverse_hebrew_sentence(Path(self.filename).stem))
             # self.clear_data()
-            self.df = pd.read_excel(f, "תוצאות", index_col=False)
-            self.tv1["column"] = list(self.df.columns)
+            self.input_df = pd.read_excel(f, "תוצאות", index_col=False)
+            columns = list(self.input_df.columns)
+            self.tv1["column"] = columns
             self.tv1["show"] = "headings"
             for column in self.tv1["column"]:
                 self.tv1.heading(column, text=column)
-            df_rows = self.df.to_numpy().tolist()
+            df_rows = self.input_df.to_numpy().tolist()
             for row in df_rows:
                 self.tv1.insert("", "end", values=row)
-            self.df = self.df.drop(self.df.index[-1])
+            self.input_df = self.input_df.drop(self.input_df.index[-1])
             self.tabview.grid(row=1, column=0, columnspan=2)
             variable = StringVar()
             variable.set("טיפול")
-            columns = self.df.columns.to_list()
-            self.x = ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=columns,
+            unduplicatedcolumns = []
+            for col in columns:
+                if col.split('.')[0] not in unduplicatedcolumns:
+                    unduplicatedcolumns.append(col)
+            self.x = ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns,
                                                 text_variable=variable)
             self.x.grid(row=0, column=0)
             self.scrollable_checkbox_frame = ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
-                                                                     item_list=columns)
+                                                                     item_list=unduplicatedcolumns)
             self.scrollable_checkbox_frame.grid(row=0, column=0)
             calc_button = CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
                                     command=self.calculate_students_t)
             self.step_variable = StringVar()
             self.step_variable.set("None")
-            blocks = columns
+            blocks = unduplicatedcolumns
             blocks.insert(0, "None")
             self.block_selection = ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks,
                                                               text_variable=self.step_variable)
