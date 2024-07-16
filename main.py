@@ -51,8 +51,10 @@ class AgrunomProjectApplication(CTkFrame):
         self.output_dict = {}
         output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
                           "14DAT sig"]
-        index = 0
+
         for label in items:
+            char = ''
+            index = 0
             for col in self.input_df.columns:
                 if label != col.split('.')[0]:
                     continue
@@ -89,8 +91,11 @@ class AgrunomProjectApplication(CTkFrame):
                                    sorted(treatment_means, key=treatment_means.get, reverse=True)}
                 sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
                 means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: custom_sort_key(x))}
-                self.output_dict[output_columns[index]] = list(means.values())
-                self.output_dict[output_columns[index + 1]] = ["".join(sorted(sigByKey[x])) for x in means.keys()]
+                if index >= len(output_columns):
+                    index = 0
+                    char += str(1)
+                self.output_dict[output_columns[index]+char] = list(means.values())
+                self.output_dict[output_columns[index + 1]+char] = ["".join(sorted(sigByKey[x])) for x in means.keys()]
                 index += 2
             self.output_df = pd.DataFrame(self.output_dict)
             self.output_df.insert(0, label, means.keys())
