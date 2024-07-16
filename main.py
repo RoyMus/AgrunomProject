@@ -1,138 +1,12 @@
-from pathlib import Path
+from tkinter import messagebox
+from tkinter import ttk
 import pandas as pd
-from customtkinter import *
-from tkinter import filedialog, ttk
-from CalcUtils import *
 import statsmodels.api as sm
-from statsmodels.formula.api import ols
 from scipy import stats
-import re
+from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
-from openpyxl import load_workbook
-from openpyxl.styles import Font, Border, Side, Alignment
-import shutil
-
-
-# Define a custom sorting key function
-def custom_sort_key(val):
-    if val == 'UTC':
-        return (0, '')  # Make "UTC" come first
-    return (1, int(val))  # Then sort by numeric values
-
-
-class ScrollableCheckBoxFrame(CTkScrollableFrame):
-    def __init__(self, master, item_list, command=None, **kwargs):
-        super().__init__(master, **kwargs)
-
-        self.command = command
-        self.checkbox_list = []
-        for i, item in enumerate(item_list):
-            self.add_item(item)
-
-    def add_item(self, item):
-        checkbox = CTkCheckBox(self, text=item)
-        if self.command is not None:
-            checkbox.configure(command=self.command)
-        checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10))
-        self.checkbox_list.append(checkbox)
-
-    def remove_item(self, item):
-        for checkbox in self.checkbox_list:
-            if item == checkbox.cget("text"):
-                checkbox.destroy()
-                self.checkbox_list.remove(checkbox)
-                return
-
-    def get_checked_items(self):
-        return [checkbox.cget("text") for checkbox in self.checkbox_list if checkbox.get() == 1]
-
-
-class ScrollableRadiobuttonFrame(CTkScrollableFrame):
-    def __init__(self, master, item_list, command=None, text_variable=None, **kwargs):
-        super().__init__(master, **kwargs)
-
-        self.command = command
-        if text_variable is not None:
-            self.radiobutton_variable = text_variable
-        else:
-            self.radiobutton_variable = StringVar()
-
-        self.radiobutton_list = []
-        for i, item in enumerate(item_list):
-            self.add_item(item)
-
-    def add_item(self, item):
-        radiobutton = CTkRadioButton(self, text=item, value=item, variable=self.radiobutton_variable)
-        if self.command is not None:
-            radiobutton.configure(command=self.command)
-        radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10))
-        self.radiobutton_list.append(radiobutton)
-
-    def remove_item(self, item):
-        for radiobutton in self.radiobutton_list:
-            if item == radiobutton.cget("text"):
-                radiobutton.destroy()
-                self.radiobutton_list.remove(radiobutton)
-                return
-
-    def get_checked_item(self):
-        return self.radiobutton_variable.get()
-
-
-def reverse_hebrew_sentence(sentence):
-    # Regular expression to match Hebrew words, possibly followed by numbers or special characters
-    pattern = re.compile(r'([א-ת]+(?:\d+|[^\sא-ת]*)*)')
-
-    # Find all matches
-    words_numbers = pattern.findall(sentence)
-
-    # Reverse the list of matches
-    reversed_sentence = ' '.join(words_numbers[::-1])
-
-    return reversed_sentence
-
-
-def append_df_to_excel(filename, df, sheet_name='Sheet1'):
-    path = Path(filename)
-    output_file = path.with_stem(f"{path.stem}(app_generated)")
-    if not Path(output_file).is_file():
-        output_path = shutil.copy(filename, output_file)
-    else:
-        output_path = output_file
-    # Try to open an existing workbook
-    try:
-        book = load_workbook(output_path)
-        writer = pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='overlay')
-        writer.workbook = book
-        if sheet_name in writer.workbook.sheetnames:
-            startrow = writer.workbook[sheet_name].max_row
-        else:
-            startrow = 0
-    except FileNotFoundError:
-        # File does not exist yet, create a new one
-        writer = pd.ExcelWriter(output_path, engine='openpyxl', mode='w')
-        startrow = 0
-    # Write the dataframe to the Excel file
-    df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + 1, index=False, header=True)
-    writer.close()
-    # Reload the workbook and the sheet to apply formatting
-    book = load_workbook(output_path)
-    sheet = book[sheet_name]
-
-    # Apply font and borders
-    font = Font(name='David', size=12)
-    border = Border(left=Side(style='thin', color='000000'),
-                    right=Side(style='thin', color='000000'),
-                    top=Side(style='thin', color='000000'),
-                    bottom=Side(style='thin', color='000000'))
-    alignment = Alignment(horizontal='center')
-
-    for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
-        for cell in row:
-            cell.font = font
-            cell.border = border
-            cell.alignment = alignment
-    book.save(output_path)
+from CalcUtils import *
+from Utils import *
 
 
 class AgrunomProjectApplication(CTkFrame):
@@ -156,6 +30,7 @@ class AgrunomProjectApplication(CTkFrame):
         read_file_button = CTkButton(self.upper_frame, text="Open File", command=self.read_file)
         read_file_button.grid(row=0, column=0, columnspan=2, pady=10)
         # create tabview
+        pd.options.display.float_format = '${:,.2f}'.format
         self.tabview = CTkTabview(self.upper_frame, width=250)
         self.tabview.add("X")
         self.tabview.add("Y")
@@ -213,15 +88,15 @@ class AgrunomProjectApplication(CTkFrame):
                 treatment_means = {r: treatment_means[r] for r in
                                    sorted(treatment_means, key=treatment_means.get, reverse=True)}
                 sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
-                index = index % len(output_columns)
-                self.output_dict[output_columns[index]] = list(treatment_means.values())
-                self.output_dict[output_columns[index + 1]] = ["".join(sorted(value)) for value in sigByKey.values()]
+                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: custom_sort_key(x))}
+                self.output_dict[output_columns[index]] = list(means.values())
+                self.output_dict[output_columns[index + 1]] = ["".join(sorted(sigByKey[x])) for x in means.keys()]
                 index += 2
-
             self.output_df = pd.DataFrame(self.output_dict)
-            self.output_df.insert(0, label, treatment_means.keys())
-            self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
+            self.output_df.insert(0, label, means.keys())
+            # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
             append_df_to_excel(self.filename, self.output_df, "טבלאות")
+        messagebox.showinfo("Calculation finished", "Your calculation is finished")
 
     def calculate_tukey_hsd(self):
         x_value = self.x.get_checked_item()
@@ -252,6 +127,7 @@ class AgrunomProjectApplication(CTkFrame):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
                                                    filetypes=[("Excel files", ".xlsx .xls")])
         if not self.filename:
+            messagebox.showerror("File Not Selected", "You didn't select a file")
             return
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=reverse_hebrew_sentence(Path(self.filename).stem))
@@ -293,8 +169,6 @@ class AgrunomProjectApplication(CTkFrame):
             tukey_calc = CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
                                    command=self.calculate_tukey_hsd)
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
-            # calc_button = CTkButton(self.root, text="Calculate Each Pair Tukey", command=self.print_table)
-            # calc_button.grid(row=2 + n_cols + 1, column=1,padx=5)
 
     def clear_data(self):
         self.tv1.delete(*self.tv1)
