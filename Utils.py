@@ -6,6 +6,7 @@ from openpyxl.styles import Font, Border, Side, Alignment
 import shutil
 import pandas as pd
 
+
 class ScrollableCheckBoxFrame(CTkScrollableFrame):
     def __init__(self, master, item_list, command=None, **kwargs):
         super().__init__(master, **kwargs)
@@ -16,7 +17,7 @@ class ScrollableCheckBoxFrame(CTkScrollableFrame):
             self.add_item(item)
 
     def add_item(self, item):
-        checkbox = CTkCheckBox(self, text=item)
+        checkbox = CTkCheckBox(self, text=reverse_hebrew_sentence(item))
         if self.command is not None:
             checkbox.configure(command=self.command)
         checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10))
@@ -30,7 +31,8 @@ class ScrollableCheckBoxFrame(CTkScrollableFrame):
                 return
 
     def get_checked_items(self):
-        return [checkbox.cget("text") for checkbox in self.checkbox_list if checkbox.get() == 1]
+        return [reverse_hebrew_sentence(checkbox.cget("text")) for checkbox in self.checkbox_list if
+                checkbox.get() == 1]
 
 
 class ScrollableRadiobuttonFrame(CTkScrollableFrame):
@@ -48,7 +50,7 @@ class ScrollableRadiobuttonFrame(CTkScrollableFrame):
             self.add_item(item)
 
     def add_item(self, item):
-        radiobutton = CTkRadioButton(self, text=item, value=item, variable=self.radiobutton_variable)
+        radiobutton = CTkRadioButton(self, text=reverse_hebrew_sentence(item), value=item, variable=self.radiobutton_variable)
         if self.command is not None:
             radiobutton.configure(command=self.command)
         radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10))

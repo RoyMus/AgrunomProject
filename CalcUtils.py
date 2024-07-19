@@ -73,17 +73,16 @@ def calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critica
 
         if is_critical_dif:
             LetterCounter = IncrementLetterCounter(LetterCounter)
-            sigByKey[key].add(LetterCounter)
-            for secondKey in keys[1:]:
+            for index2, secondKey in enumerate(keys[1:]):
                 _, is_critical_dif_second = get_t_statistic(t_critical_value, setsStandardError, minimumSampleSize,
                                                             SortedTreatementDictionary[key],
                                                             SortedTreatementDictionary[secondKey])
                 if not is_critical_dif_second:
-                    sigByKey[secondKey].add(LetterCounter)
-
-                calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value, setsStandardError,
-                                                       minimumSampleSize, sigByKey,
-                                                       keys[index + 1:], LetterCounter)
+                    calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value,
+                                                           setsStandardError,
+                                                           minimumSampleSize, sigByKey,
+                                                           keys[index2:], LetterCounter)
+                    return
             return
         sigByKey[key].add(LetterCounter)
 
