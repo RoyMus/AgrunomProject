@@ -44,7 +44,7 @@ class AgrunomProjectApplication(CTkFrame):
         self.excel_frame.columnconfigure(0, weight=1)
         self.excel_frame.rowconfigure(0, weight=1)
 
-    def calculate_students_t(self,tukey=False):
+    def calculate(self, tukey=False):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
         items = self.scrollable_checkbox_frame.get_checked_items()
@@ -54,11 +54,12 @@ class AgrunomProjectApplication(CTkFrame):
 
         for label in items:
             char = ''
-            index = 0
+            index_of_row = 0
             for col in self.input_df.columns:
                 if label != col.split('.')[0]:
                     continue
-                df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value':  pd.to_numeric(self.input_df[col],errors='coerce')})
+                df = pd.DataFrame(
+                    {'Treatment': self.input_df[x_value], 'Value': pd.to_numeric(self.input_df[col], errors='coerce')})
                 df['Treatment'] = df['Treatment'].astype(str)
                 if block != "ללא":
                     df["Block"] = self.input_df[block].astype('category')
@@ -72,7 +73,6 @@ class AgrunomProjectApplication(CTkFrame):
                 treatment_means = {r: treatment_means[r] for r in
                                    sorted(treatment_means, key=treatment_means.get, reverse=True)}
 
-
                 if tukey:
                     # Perform Tukey HSD test
                     tukey = pairwise_tukeyhsd(endog=df['Value'],
@@ -82,7 +82,6 @@ class AgrunomProjectApplication(CTkFrame):
                     tukey_dictionary = dict()
                     for treatment in treatment_means:
                         tukey_dictionary[treatment] = dict()
-                    #for row in tukey_df.iterrows():
                     for index in range(1, len(tukey_df)):
                         row = tukey_df.loc[index]
                         tukey_dictionary[str(row.loc[0])][str(row.loc[1])] = str(row.loc[6]) == 'True'
@@ -109,18 +108,18 @@ class AgrunomProjectApplication(CTkFrame):
                     t_critical = stats.t.ppf(1 - alpha / 2, df_error)
                     sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
                 means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: custom_sort_key(x))}
-                if index >= len(output_columns):
-                    index = 0
+                if index_of_row >= len(output_columns):
+                    index_of_row = 0
                     char += str(1)
-                self.output_dict[output_columns[index]+char] = list(means.values())
-                self.output_dict[output_columns[index + 1]+char] = ["".join(sorted(sigByKey[x])) for x in means.keys()]
-                index += 2
+                self.output_dict[output_columns[index_of_row] + char] = list(means.values())
+                self.output_dict[output_columns[index_of_row + 1] + char] = ["".join(sorted(sigByKey[x])) for x in
+                                                                      means.keys()]
+                index_of_row += 2
             self.output_df = pd.DataFrame(self.output_dict)
             self.output_df.insert(0, label, means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
             append_df_to_excel(self.filename, self.output_df, "טבלאות")
         messagebox.showinfo("Calculation finished", "Your calculation is finished")
-
 
     def read_file(self):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
@@ -155,7 +154,7 @@ class AgrunomProjectApplication(CTkFrame):
                                                                      item_list=unduplicatedcolumns)
             self.scrollable_checkbox_frame.grid(row=0, column=0)
             calc_button = CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
-                                    command=self.calculate_students_t)
+                                    command=self.calculate)
             self.step_variable = StringVar()
             self.step_variable.set("ללא")
             blocks = unduplicatedcolumns
@@ -166,7 +165,7 @@ class AgrunomProjectApplication(CTkFrame):
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
             tukey_calc = CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
-                                   command=lambda: self.calculate_students_t(tukey=True))
+                                   command=lambda: self.calculate(tukey=True))
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
 
     def clear_data(self):
