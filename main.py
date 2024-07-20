@@ -67,6 +67,8 @@ class AgrunomProjectApplication(CTkFrame):
                 else:
                     model = ols('Value ~ C(Treatment)', data=df).fit()
 
+                # Perform ANOVA
+                anova_table = sm.stats.anova_lm(model, typ=2)
                 sigByKey = None
                 # Calculate means for each treatment
                 treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
@@ -78,19 +80,16 @@ class AgrunomProjectApplication(CTkFrame):
                     tukey = pairwise_tukeyhsd(endog=df['Value'],
                                               groups=df['Treatment'],
                                               alpha=0.05)
-                    tukey_df = pd.DataFrame(tukey.summary())
+                    tukey_df = pd.DataFrame(data=tukey._results_table.data[1:], columns=tukey._results_table.data[0])
                     tukey_dictionary = dict()
                     for treatment in treatment_means:
                         tukey_dictionary[treatment] = dict()
-                    for index in range(1, len(tukey_df)):
-                        row = tukey_df.loc[index]
-                        tukey_dictionary[str(row.loc[0])][str(row.loc[1])] = str(row.loc[6]) == 'True'
-                        tukey_dictionary[str(row.loc[1])][str(row.loc[0])] = str(row.loc[6]) == 'True'
+                    for index,row in tukey_df.iterrows():
+                        tukey_dictionary[row["group1"]][row["group2"]] = row["reject"] == True
+                        tukey_dictionary[row["group2"]][row["group1"]] = row["reject"] == True
 
                     sigByKey = calculate_significant_letters_tukey(tukey_dictionary)
                 else:
-                    # Perform ANOVA
-                    anova_table = sm.stats.anova_lm(model, typ=2)
 
                     # Calculate Mean Squared Error (MSE)
                     mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
@@ -113,7 +112,7 @@ class AgrunomProjectApplication(CTkFrame):
                     char += str(1)
                 self.output_dict[output_columns[index_of_row] + char] = list(means.values())
                 self.output_dict[output_columns[index_of_row + 1] + char] = ["".join(sorted(sigByKey[x])) for x in
-                                                                      means.keys()]
+                                                                             means.keys()]
                 index_of_row += 2
             self.output_df = pd.DataFrame(self.output_dict)
             self.output_df.insert(0, label, means.keys())
