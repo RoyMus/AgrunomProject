@@ -44,7 +44,7 @@ class AgrunomProjectApplication(CTkFrame):
         self.excel_frame.columnconfigure(0, weight=1)
         self.excel_frame.rowconfigure(0, weight=1)
 
-    def calculate_students_t(self):
+    def calculate_students_t(self,tukey=False):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
         items = self.scrollable_checkbox_frame.get_checked_items()
@@ -58,18 +58,24 @@ class AgrunomProjectApplication(CTkFrame):
             for col in self.input_df.columns:
                 if label != col.split('.')[0]:
                     continue
-                df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value': self.input_df[col]})
-                df['Value'] = pd.to_numeric(df['Value'])
+                df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value':  pd.to_numeric(self.input_df[col],errors='coerce')})
                 df['Treatment'] = df['Treatment'].astype(str)
-                if block != "None":
-                    df["Block"] = self.input_df[block]
+                if block != "ללא":
+                    df["Block"] = self.input_df[block].astype('category')
                     model = ols('Value ~ C(Treatment) + C(Block)', data=df).fit()
                 else:
                     model = ols('Value ~ C(Treatment)', data=df).fit()
 
                 # Perform ANOVA
                 anova_table = sm.stats.anova_lm(model, typ=2)
-
+                print(anova_table)
+                if tukey:
+                    # Perform Tukey HSD test
+                    tukey = pairwise_tukeyhsd(endog=df['Value'],
+                                              groups=df['Treatment'],
+                                              alpha=0.05)
+                    print(tukey)
+                    tukey_df = pd.DataFrame(tukey.summary())
                 # Calculate Mean Squared Error (MSE)
                 mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
 
@@ -84,9 +90,8 @@ class AgrunomProjectApplication(CTkFrame):
 
                 # Critical t-value
                 t_critical = stats.t.ppf(1 - alpha / 2, df_error)
-
-                # Calculate means for each treatment
                 treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
+                # Calculate means for each treatment
                 treatment_means = {r: treatment_means[r] for r in
                                    sorted(treatment_means, key=treatment_means.get, reverse=True)}
                 sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
@@ -103,30 +108,6 @@ class AgrunomProjectApplication(CTkFrame):
             append_df_to_excel(self.filename, self.output_df, "טבלאות")
         messagebox.showinfo("Calculation finished", "Your calculation is finished")
 
-    def calculate_tukey_hsd(self):
-        x_value = self.x.get_checked_item()
-        block = self.block_selection.get_checked_item()
-        for label in self.scrollable_checkbox_frame.get_checked_items():
-            df = pd.DataFrame({'Treatment': self.input_df[x_value], 'Value': self.input_df[label]})
-            print("DataFrame:")
-            print(df)
-            df['Value'] = pd.to_numeric(df['Value'])
-            df['Treatment'] = df['Treatment'].astype(str)
-            df = df.dropna()
-            if block != "None":
-                df["Block"] = self.df[block]
-                model = ols('Value ~ C(Treatment) + C(Block)', data=df).fit()
-            else:
-                model = ols('Value ~ C(Treatment)', data=df).fit()
-
-            # Perform ANOVA
-            anova_table = sm.stats.anova_lm(model, typ=2)
-
-            # Perform Tukey HSD test
-            tukey = pairwise_tukeyhsd(endog=df['Value'],
-                                      groups=df['Treatment'],
-                                      alpha=0.05)
-            print(tukey)
 
     def read_file(self):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
@@ -163,16 +144,16 @@ class AgrunomProjectApplication(CTkFrame):
             calc_button = CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
                                     command=self.calculate_students_t)
             self.step_variable = StringVar()
-            self.step_variable.set("None")
+            self.step_variable.set("ללא")
             blocks = unduplicatedcolumns
-            blocks.insert(0, "None")
+            blocks.insert(0, "ללא")
             self.block_selection = ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks,
                                                               text_variable=self.step_variable)
             self.block_selection.grid(row=0, column=0)
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
             tukey_calc = CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
-                                   command=self.calculate_tukey_hsd)
+                                   command=lambda: self.calculate_students_t(tukey=True))
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
 
     def clear_data(self):
