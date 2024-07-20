@@ -66,35 +66,48 @@ class AgrunomProjectApplication(CTkFrame):
                 else:
                     model = ols('Value ~ C(Treatment)', data=df).fit()
 
-                # Perform ANOVA
-                anova_table = sm.stats.anova_lm(model, typ=2)
-                print(anova_table)
+                sigByKey = None
+                # Calculate means for each treatment
+                treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
+                treatment_means = {r: treatment_means[r] for r in
+                                   sorted(treatment_means, key=treatment_means.get, reverse=True)}
+
+
                 if tukey:
                     # Perform Tukey HSD test
                     tukey = pairwise_tukeyhsd(endog=df['Value'],
                                               groups=df['Treatment'],
                                               alpha=0.05)
-                    print(tukey)
                     tukey_df = pd.DataFrame(tukey.summary())
-                # Calculate Mean Squared Error (MSE)
-                mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
+                    tukey_dictionary = dict()
+                    for treatment in treatment_means:
+                        tukey_dictionary[treatment] = dict()
+                    #for row in tukey_df.iterrows():
+                    for index in range(1, len(tukey_df)):
+                        row = tukey_df.loc[index]
+                        tukey_dictionary[str(row.loc[0])][str(row.loc[1])] = str(row.loc[6]) == 'True'
+                        tukey_dictionary[str(row.loc[1])][str(row.loc[0])] = str(row.loc[6]) == 'True'
 
-                # Number of samples per group (assuming equal sample size)
-                n = df['Treatment'].value_counts().min()  # Use the minimum count in case of unequal sizes
+                    sigByKey = calculate_significant_letters_tukey(tukey_dictionary)
+                else:
+                    # Perform ANOVA
+                    anova_table = sm.stats.anova_lm(model, typ=2)
 
-                # Degrees of freedom for error
-                df_error = anova_table['df']['Residual']
+                    # Calculate Mean Squared Error (MSE)
+                    mse = anova_table['sum_sq']['Residual'] / anova_table['df']['Residual']
 
-                # Significance level
-                alpha = 0.05
+                    # Number of samples per group (assuming equal sample size)
+                    n = df['Treatment'].value_counts().min()  # Use the minimum count in case of unequal sizes
 
-                # Critical t-value
-                t_critical = stats.t.ppf(1 - alpha / 2, df_error)
-                treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
-                # Calculate means for each treatment
-                treatment_means = {r: treatment_means[r] for r in
-                                   sorted(treatment_means, key=treatment_means.get, reverse=True)}
-                sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
+                    # Degrees of freedom for error
+                    df_error = anova_table['df']['Residual']
+
+                    # Significance level
+                    alpha = 0.05
+
+                    # Critical t-value
+                    t_critical = stats.t.ppf(1 - alpha / 2, df_error)
+                    sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
                 means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: custom_sort_key(x))}
                 if index >= len(output_columns):
                     index = 0

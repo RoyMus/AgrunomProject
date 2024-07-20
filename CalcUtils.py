@@ -57,6 +57,14 @@ def calculate_significant_letters(SortedTreatementDictionary, t_critical_value, 
                                            LetterCounter)
     return sigByKey
 
+def calculate_significant_letters_tukey(SortedTreatementDictionary):
+    keys = list(SortedTreatementDictionary.keys())
+    sigByKey = {key: set() for key in keys}
+    LetterCounter = 'A'
+    calculate_signficant_letters_recursion_tukey(SortedTreatementDictionary, sigByKey, keys,
+                                           LetterCounter)
+    return sigByKey
+
 
 def calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value, setsStandardError,
                                            minimumSampleSize, sigByKey, keys,
@@ -81,6 +89,34 @@ def calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critica
                     calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critical_value,
                                                            setsStandardError,
                                                            minimumSampleSize, sigByKey,
+                                                           keys[index2 + 1:], LetterCounter)
+                    return
+            return
+        sigByKey[key].add(LetterCounter)
+
+def calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary, sigByKey, keys,
+                                           LetterCounter):
+    def IncrementLetterCounter(LetterCounter):
+        AsciiOfLetter = ord(LetterCounter)
+        IncrementedLettersAscii = AsciiOfLetter + 1
+        return chr(IncrementedLettersAscii)
+
+    sigByKey[keys[0]].add(LetterCounter)
+
+    for index, key in enumerate(keys[1:]):
+        is_critical_dif = SortedTukeyTreatementDictionary[key][keys[0]]
+
+        if is_critical_dif:
+            LetterCounter = IncrementLetterCounter(LetterCounter)
+            for index2, secondKey in enumerate(keys[1:]):
+                if secondKey == key:
+                    calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary, sigByKey,
+                                                                 keys[index2 + 1:], LetterCounter)
+                    return
+
+                is_critical_dif_second = SortedTukeyTreatementDictionary[key][secondKey]
+                if not is_critical_dif_second:
+                    calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary, sigByKey,
                                                            keys[index2 + 1:], LetterCounter)
                     return
             return
