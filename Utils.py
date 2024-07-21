@@ -68,16 +68,8 @@ class ScrollableRadiobuttonFrame(CTkScrollableFrame):
 
 
 def reverse_hebrew_sentence(sentence):
-    # Regular expression to match Hebrew words, possibly followed by numbers or special characters
-    pattern = re.compile(r'([א-ת]+(?:\d+|[^\sא-ת]*)*)')
-
-    # Find all matches
-    words_numbers = pattern.findall(sentence)
-
-    # Reverse the list of matches
-    reversed_sentence = ' '.join(words_numbers[::-1])
-
-    return reversed_sentence
+    split = sentence.split(' ')
+    return " ".join(split[::-1])
 
 
 def custom_sort_key(val):
