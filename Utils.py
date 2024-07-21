@@ -1,13 +1,12 @@
 from pathlib import Path
-from customtkinter import *
-import re
+import customtkinter
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 import shutil
 import pandas as pd
 
 
-class ScrollableCheckBoxFrame(CTkScrollableFrame):
+class ScrollableCheckBoxFrame(customtkinter.CTkScrollableFrame):
     def __init__(self, master, item_list, command=None, **kwargs):
         super().__init__(master, **kwargs)
 
@@ -17,7 +16,7 @@ class ScrollableCheckBoxFrame(CTkScrollableFrame):
             self.add_item(item)
 
     def add_item(self, item):
-        checkbox = CTkCheckBox(self, text=reverse_hebrew_sentence(item))
+        checkbox = customtkinter.CTkCheckBox(self, text=reverse_hebrew_sentence(item))
         if self.command is not None:
             checkbox.configure(command=self.command)
         checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10))
@@ -35,7 +34,7 @@ class ScrollableCheckBoxFrame(CTkScrollableFrame):
                 checkbox.get() == 1]
 
 
-class ScrollableRadiobuttonFrame(CTkScrollableFrame):
+class ScrollableRadiobuttonFrame(customtkinter.CTkScrollableFrame):
     def __init__(self, master, item_list, command=None, text_variable=None, **kwargs):
         super().__init__(master, **kwargs)
 
@@ -43,7 +42,7 @@ class ScrollableRadiobuttonFrame(CTkScrollableFrame):
         if text_variable is not None:
             self.radiobutton_variable = text_variable
         else:
-            self.radiobutton_variable = StringVar()
+            self.radiobutton_variable = customtkinter.StringVar()
             if len(item_list) > 0:
                 self.radiobutton_variable.set(item_list[0])
 
@@ -52,7 +51,7 @@ class ScrollableRadiobuttonFrame(CTkScrollableFrame):
             self.add_item(item)
 
     def add_item(self, item):
-        radiobutton = CTkRadioButton(self, text=reverse_hebrew_sentence(item), value=item, variable=self.radiobutton_variable)
+        radiobutton = customtkinter.CTkRadioButton(self, text=reverse_hebrew_sentence(item), value=item, variable=self.radiobutton_variable)
         if self.command is not None:
             radiobutton.configure(command=self.command)
         radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10))
@@ -115,15 +114,19 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
                     bottom=Side(style='thin', color='000000'))
     alignment = Alignment(horizontal='center')
     dot_index = list(df.columns).index("DOT") + 1
+    frequency = "שכיחות" in df.columns
     # Find the index of the 'DOT' column
     for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
         for cell in row:
             cell.font = font
             cell.border = border
             cell.alignment = alignment
-            if cell.column == dot_index:
+            if frequency:
+                cell.number_format = '0.00%'
+            elif cell.column == dot_index:
                 cell.number_format = '0.0'
             else:
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
     book.save(output_path)
+    return output_path

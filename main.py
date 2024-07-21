@@ -1,44 +1,48 @@
-from tkinter import messagebox
+import os
+from tkinter import messagebox, filedialog
 from tkinter import ttk
-import pandas as pd
 import statsmodels.api as sm
 from scipy import stats
 from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
-from CalcUtils import *
-from Utils import *
+import CalcUtils
+import customtkinter
+import Utils
+import pandas as pd
+from pathlib import Path
 
 
-class AgrunomProjectApplication(CTkFrame):
+class AgrunomProjectApplication(customtkinter.CTkFrame):
     def __init__(self, root):
         self.filename = None
-        set_appearance_mode("light")  # Modes: system (default), light, dark
-        set_default_color_theme("green")
+        customtkinter.set_appearance_mode("light")  # Modes: system (default), light, dark
+        customtkinter.set_default_color_theme("green")
         # Themes: blue (default), dark-blue, green
-        CTkFrame.__init__(self, root)
+        customtkinter.CTkFrame.__init__(self, root)
         root.columnconfigure(0, weight=1)
         root.columnconfigure(1, weight=1)
         root.rowconfigure(0, weight=1)
         root.rowconfigure(1, weight=1)
-        self.upper_frame = CTkFrame(root, fg_color="transparent")
+        self.upper_frame = customtkinter.CTkFrame(root, fg_color="transparent")
         self.upper_frame.grid(row=0, column=0, columnspan=2)
         self.scrollable_checkbox_frame = None
         self.value_inside = None
         self.input_df = None
         self.output_df = None
         self.root = root
-        read_file_button = CTkButton(self.upper_frame, text="Open File", command=self.read_file)
+        read_file_button = customtkinter.CTkButton(self.upper_frame, text="Open File", command=self.read_file)
         read_file_button.grid(row=0, column=0, columnspan=2, pady=10)
         # create tabview
         pd.options.display.float_format = '${:,.2f}'.format
-        self.tabview = CTkTabview(self.upper_frame, width=250)
+        self.tabview = customtkinter.CTkTabview(self.upper_frame, width=250)
         self.tabview.add("X")
         self.tabview.add("Y")
         self.tabview.add("Block")
         self.tabview.tab("X").grid_columnconfigure(0, weight=1)  # configure grid of individual tabs
         self.tabview.tab("Y").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Block").grid_columnconfigure(0, weight=1)
-        self.excel_frame = CTkScrollableFrame(self.root, label_text="Excel Data", orientation="horizontal")
+        self.excel_frame = customtkinter.CTkScrollableFrame(self.root, label_text="Excel Data",
+                                                            orientation="horizontal")
         self.tv1 = ttk.Treeview(self.excel_frame)
         self.tv1.grid(row=0, column=0, sticky="nsew")
         self.excel_frame.columnconfigure(0, weight=1)
@@ -55,7 +59,7 @@ class AgrunomProjectApplication(CTkFrame):
         self.output_dict = {}
         output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
                           "14DAT sig"]
-
+        output_path = None
         for label in items:
             char = ''
             index_of_row = 0
@@ -92,7 +96,7 @@ class AgrunomProjectApplication(CTkFrame):
                         tukey_dictionary[row["group1"]][row["group2"]] = row["reject"] == True
                         tukey_dictionary[row["group2"]][row["group1"]] = row["reject"] == True
 
-                    sigByKey = calculate_significant_letters_tukey(tukey_dictionary)
+                    sigByKey = CalcUtils.calculate_significant_letters_tukey(tukey_dictionary)
                 else:
 
                     # Calculate Mean Squared Error (MSE)
@@ -109,8 +113,8 @@ class AgrunomProjectApplication(CTkFrame):
 
                     # Critical t-value
                     t_critical = stats.t.ppf(1 - alpha / 2, df_error)
-                    sigByKey = calculate_significant_letters(treatment_means, t_critical, mse, n)
-                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: custom_sort_key(x))}
+                    sigByKey = CalcUtils.calculate_significant_letters(treatment_means, t_critical, mse, n)
+                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: Utils.custom_sort_key(x))}
                 if index_of_row >= len(output_columns):
                     index_of_row = 0
                     char += str(1)
@@ -121,13 +125,15 @@ class AgrunomProjectApplication(CTkFrame):
             self.output_df = pd.DataFrame(self.output_dict)
             self.output_df.insert(0, label, means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
-            append_df_to_excel(self.filename, self.output_df, "טבלאות")
-        messagebox.showinfo("Calculation finished", "Your calculation is finished")
+            output_path = Utils.append_df_to_excel(self.filename, self.output_df, "טבלאות")
+        result = messagebox.askokcancel("Calculation finished", f"Do you want to open the file? ")
+        if result:
+            os.system(f'explorer /select,"{output_path}"')
 
     def init_ui(self, sheet_name):
         self.newWindow.withdraw()
         with open(self.filename, 'rb') as f:
-            self.excel_frame._label.configure(text=reverse_hebrew_sentence(Path(self.filename).stem))
+            self.excel_frame._label.configure(text=Utils.reverse_hebrew_sentence(Path(self.filename).stem))
             self.input_df = pd.read_excel(f, sheet_name, index_col=False)
             columns = list(self.input_df.columns)
             self.tv1["column"] = columns
@@ -143,21 +149,21 @@ class AgrunomProjectApplication(CTkFrame):
             for col in columns:
                 if col.split('.')[0] not in unduplicatedcolumns:
                     unduplicatedcolumns.append(col)
-            self.x = ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns)
+            self.x = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns)
             self.x.grid(row=0, column=0)
-            self.scrollable_checkbox_frame = ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
-                                                                     item_list=unduplicatedcolumns)
+            self.scrollable_checkbox_frame = Utils.ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
+                                                                           item_list=unduplicatedcolumns)
             self.scrollable_checkbox_frame.grid(row=0, column=0)
-            calc_button = CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
-                                    command=self.calculate)
+            calc_button = customtkinter.CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
+                                                  command=self.calculate)
             blocks = unduplicatedcolumns
             blocks.insert(0, "ללא")
-            self.block_selection = ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks)
+            self.block_selection = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks)
             self.block_selection.grid(row=0, column=0)
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
-            tukey_calc = CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
-                                   command=lambda: self.calculate(tukey=True))
+            tukey_calc = customtkinter.CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
+                                                 command=lambda: self.calculate(tukey=True))
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
 
     def read_file(self):
@@ -169,18 +175,19 @@ class AgrunomProjectApplication(CTkFrame):
 
         xls = pd.ExcelFile(self.filename)
         # Now you can list all sheets in the file
-        self.newWindow = CTkToplevel(self.root)
+        self.newWindow = customtkinter.CTkToplevel(self.root)
         self.newWindow.title("Choose sheet name")
         self.newWindow.geometry("400x400")
-        self.newWindow.geometry("+%d+%d" %(self.root.winfo_x()+50,self.root.winfo_y()+50))
+        self.newWindow.geometry("+%d+%d" % (self.root.winfo_x() + 50, self.root.winfo_y() + 50))
         self.newWindow.attributes('-topmost', 'true')
         self.newWindow.columnconfigure(0, weight=1)
         self.newWindow.columnconfigure(1, weight=1)
-        self.newWindow.rowconfigure(0,weight=1)
-        self.newWindow.rowconfigure(1,weight=1)
-        sheets = ScrollableRadiobuttonFrame(self.newWindow, item_list=xls.sheet_names)
+        self.newWindow.rowconfigure(0, weight=1)
+        self.newWindow.rowconfigure(1, weight=1)
+        sheets = Utils.ScrollableRadiobuttonFrame(self.newWindow, item_list=xls.sheet_names)
         sheets.grid(row=0, column=0, columnspan=2)
-        confirm = CTkButton(self.newWindow, text="Confirm", command=lambda: self.init_ui(sheets.get_checked_item()))
+        confirm = customtkinter.CTkButton(self.newWindow, text="Confirm",
+                                          command=lambda: self.init_ui(sheets.get_checked_item()))
         confirm.grid(row=1, column=0, columnspan=2)
         self.newWindow.focus()
 
@@ -189,7 +196,7 @@ class AgrunomProjectApplication(CTkFrame):
 
 
 if __name__ == '__main__':
-    root = CTk()
+    root = customtkinter.CTk()
     root.geometry("500x700")
     root.title('AgronumProject')
     AgrunomProjectApplication(root)
