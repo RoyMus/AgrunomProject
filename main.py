@@ -48,6 +48,10 @@ class AgrunomProjectApplication(CTkFrame):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
         items = self.scrollable_checkbox_frame.get_checked_items()
+
+        if len(items) == 0:
+            messagebox.showerror("No Y chosen", "Please choose at least one Y value")
+            return
         self.output_dict = {}
         output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
                           "14DAT sig"]
@@ -84,7 +88,7 @@ class AgrunomProjectApplication(CTkFrame):
                     tukey_dictionary = dict()
                     for treatment in treatment_means:
                         tukey_dictionary[treatment] = dict()
-                    for index,row in tukey_df.iterrows():
+                    for index, row in tukey_df.iterrows():
                         tukey_dictionary[row["group1"]][row["group2"]] = row["reject"] == True
                         tukey_dictionary[row["group2"]][row["group1"]] = row["reject"] == True
 
@@ -120,16 +124,11 @@ class AgrunomProjectApplication(CTkFrame):
             append_df_to_excel(self.filename, self.output_df, "טבלאות")
         messagebox.showinfo("Calculation finished", "Your calculation is finished")
 
-    def read_file(self):
-        self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
-                                                   filetypes=[("Excel files", ".xlsx .xls")])
-        if not self.filename:
-            messagebox.showerror("File Not Selected", "You didn't select a file")
-            return
+    def init_ui(self, sheet_name):
+        self.newWindow.withdraw()
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=reverse_hebrew_sentence(Path(self.filename).stem))
-            # self.clear_data()
-            self.input_df = pd.read_excel(f, "תוצאות", index_col=False)
+            self.input_df = pd.read_excel(f, sheet_name, index_col=False)
             columns = list(self.input_df.columns)
             self.tv1["column"] = columns
             self.tv1["show"] = "headings"
@@ -140,32 +139,50 @@ class AgrunomProjectApplication(CTkFrame):
                 self.tv1.insert("", "end", values=row)
             self.input_df = self.input_df.drop(self.input_df.index[-1])
             self.tabview.grid(row=1, column=0, columnspan=2)
-            variable = StringVar()
-            variable.set("טיפול")
             unduplicatedcolumns = []
             for col in columns:
                 if col.split('.')[0] not in unduplicatedcolumns:
                     unduplicatedcolumns.append(col)
-            self.x = ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns,
-                                                text_variable=variable)
+            self.x = ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns)
             self.x.grid(row=0, column=0)
             self.scrollable_checkbox_frame = ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
                                                                      item_list=unduplicatedcolumns)
             self.scrollable_checkbox_frame.grid(row=0, column=0)
             calc_button = CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
                                     command=self.calculate)
-            self.step_variable = StringVar()
-            self.step_variable.set("ללא")
             blocks = unduplicatedcolumns
             blocks.insert(0, "ללא")
-            self.block_selection = ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks,
-                                                              text_variable=self.step_variable)
+            self.block_selection = ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks)
             self.block_selection.grid(row=0, column=0)
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
             tukey_calc = CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
                                    command=lambda: self.calculate(tukey=True))
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
+
+    def read_file(self):
+        self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
+                                                   filetypes=[("Excel files", ".xlsx .xls")])
+        if not self.filename:
+            messagebox.showerror("File Not Selected", "You didn't select a file")
+            return
+
+        xls = pd.ExcelFile(self.filename)
+        # Now you can list all sheets in the file
+        self.newWindow = CTkToplevel(self.root)
+        self.newWindow.title("Choose sheet name")
+        self.newWindow.geometry("400x400")
+        self.newWindow.geometry("+%d+%d" %(self.root.winfo_x()+50,self.root.winfo_y()+50))
+        self.newWindow.attributes('-topmost', 'true')
+        self.newWindow.columnconfigure(0, weight=1)
+        self.newWindow.columnconfigure(1, weight=1)
+        self.newWindow.rowconfigure(0,weight=1)
+        self.newWindow.rowconfigure(1,weight=1)
+        sheets = ScrollableRadiobuttonFrame(self.newWindow, item_list=xls.sheet_names)
+        sheets.grid(row=0, column=0, columnspan=2)
+        confirm = CTkButton(self.newWindow, text="Confirm", command=lambda: self.init_ui(sheets.get_checked_item()))
+        confirm.grid(row=1, column=0, columnspan=2)
+        self.newWindow.focus()
 
     def clear_data(self):
         self.tv1.delete(*self.tv1)
@@ -176,4 +193,5 @@ if __name__ == '__main__':
     root.geometry("500x700")
     root.title('AgronumProject')
     AgrunomProjectApplication(root)
+    root.focus()
     root.mainloop()

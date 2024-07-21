@@ -44,6 +44,8 @@ class ScrollableRadiobuttonFrame(CTkScrollableFrame):
             self.radiobutton_variable = text_variable
         else:
             self.radiobutton_variable = StringVar()
+            if len(item_list) > 0:
+                self.radiobutton_variable.set(item_list[0])
 
         self.radiobutton_list = []
         for i, item in enumerate(item_list):
