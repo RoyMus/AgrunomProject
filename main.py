@@ -143,7 +143,6 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             df_rows = self.input_df.to_numpy().tolist()
             for row in df_rows:
                 self.tv1.insert("", "end", values=row)
-            self.input_df = self.input_df.drop(self.input_df.index[-1])
             self.tabview.grid(row=1, column=0, columnspan=2)
             unduplicatedcolumns = []
             for col in columns:
