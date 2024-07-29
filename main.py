@@ -129,7 +129,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                                                                              means.keys()]
                 index_of_row += 2
             self.output_df = pd.DataFrame(self.output_dict)
-            self.output_df.insert(0, label, treatment_means.keys())
+            self.output_df.insert(0, label, means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
             Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
