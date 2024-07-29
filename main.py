@@ -59,7 +59,13 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         self.output_dict = {}
         output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
                           "14DAT sig"]
-        output_path = None
+        output_path = Utils.generate_new_file(self.filename)
+        # The text you want to add on top
+        if tukey:
+            text = "Tukey Pairwise Test"
+        else:
+            text = "Each Pair Student's T"
+        Utils.write_text_to_excel(output_path, text, "טבלאות")
         for label in items:
             char = ''
             index_of_row = 0
@@ -114,19 +120,19 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                     # Critical t-value
                     t_critical = stats.t.ppf(1 - alpha / 2, df_error)
                     sigByKey = CalcUtils.calculate_significant_letters(treatment_means, t_critical, mse, n)
-                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: Utils.custom_sort_key(x))}
                 if index_of_row >= len(output_columns):
                     index_of_row = 0
                     char += str(1)
+                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: Utils.custom_sort_key(x))}
                 self.output_dict[output_columns[index_of_row] + char] = list(means.values())
                 self.output_dict[output_columns[index_of_row + 1] + char] = ["".join(sorted(sigByKey[x])) for x in
                                                                              means.keys()]
                 index_of_row += 2
             self.output_df = pd.DataFrame(self.output_dict)
-            self.output_df.insert(0, label, means.keys())
+            self.output_df.insert(0, label, treatment_means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
-            output_path = Utils.append_df_to_excel(self.filename, self.output_df, "טבלאות")
-        result = messagebox.askokcancel("Calculation finished", f"Do you want to open the file? ")
+            Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
+        result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')
 
@@ -135,6 +141,13 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=Utils.reverse_hebrew_sentence(Path(self.filename).stem))
             self.input_df = pd.read_excel(f, sheet_name, index_col=False)
+            # Identify the index of the first row with at least one NaN value
+
+            first_nan_row = self.input_df.index[self.input_df.isna().any(axis=1)]
+            if not first_nan_row.empty:
+                first_nan_row_index = first_nan_row[0]
+                # Keep only the rows before the first row with NaN
+                self.input_df = self.input_df.iloc[:first_nan_row_index]
             columns = list(self.input_df.columns)
             self.tv1["column"] = columns
             self.tv1["show"] = "headings"
@@ -161,7 +174,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             self.block_selection.grid(row=0, column=0)
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
-            tukey_calc = customtkinter.CTkButton(self.upper_frame, text="Calculate Each Pair Tukey ",
+            tukey_calc = customtkinter.CTkButton(self.upper_frame, text="Calculate Pairwise Tukey ",
                                                  command=lambda: self.calculate(tukey=True))
             tukey_calc.grid(row=2, column=1, pady=(15, 0), padx=10)
 
@@ -169,7 +182,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select file",
                                                    filetypes=[("Excel files", ".xlsx .xls")])
         if not self.filename:
-            messagebox.showerror("File Not Selected", "You didn't select a file")
+            messagebox.showerror("File Not Selected", "Please select a file")
             return
 
         xls = pd.ExcelFile(self.filename)
