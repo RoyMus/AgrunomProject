@@ -10,6 +10,7 @@ import customtkinter
 import Utils
 import pandas as pd
 from pathlib import Path
+import numpy as np
 
 
 class AgrunomProjectApplication(customtkinter.CTkFrame):
@@ -57,8 +58,6 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             messagebox.showerror("No Y chosen", "Please choose at least one Y value")
             return
         self.output_dict = {}
-        output_columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig", "14DAT",
-                          "14DAT sig"]
         output_path = Utils.generate_new_file(self.filename)
         # The text you want to add on top
         if tukey:
@@ -85,9 +84,9 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 anova_table = sm.stats.anova_lm(model, typ=2)
                 sigByKey = None
                 # Calculate means for each treatment
-                treatment_means = df.groupby('Treatment')['Value'].mean().to_dict()
-                treatment_means = {r: treatment_means[r] for r in
-                                   sorted(treatment_means, key=treatment_means.get, reverse=True)}
+                treatment_means = df.groupby('Treatment', sort=False)['Value'].mean().to_dict()
+                treatment_means_sorted = {r: treatment_means[r] for r in
+                                          sorted(treatment_means, key=treatment_means.get, reverse=True)}
 
                 if tukey:
                     # Perform Tukey HSD test
@@ -119,17 +118,16 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
 
                     # Critical t-value
                     t_critical = stats.t.ppf(1 - alpha / 2, df_error)
-                    sigByKey = CalcUtils.calculate_significant_letters(treatment_means, t_critical, mse, n)
-                if index_of_row >= len(output_columns):
+                    sigByKey = CalcUtils.calculate_significant_letters(treatment_means_sorted, t_critical, mse, n)
+                if index_of_row >= len(self.columns):
                     index_of_row = 0
                     char += str(1)
-                means = {i: treatment_means[i] for i in sorted(treatment_means, key=lambda x: Utils.custom_sort_key(x))}
-                self.output_dict[output_columns[index_of_row] + char] = list(means.values())
-                self.output_dict[output_columns[index_of_row + 1] + char] = ["".join(sorted(sigByKey[x])) for x in
-                                                                             means.keys()]
+                self.output_dict[self.columns[index_of_row] + char] = list(treatment_means.values())
+                self.output_dict[self.columns[index_of_row + 1] + char] = ["".join(sorted(sigByKey[x])) for x in
+                                                                           treatment_means.keys()]
                 index_of_row += 2
             self.output_df = pd.DataFrame(self.output_dict)
-            self.output_df.insert(0, label, means.keys())
+            self.output_df.insert(0, label, treatment_means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
             Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
@@ -143,11 +141,24 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             self.input_df = pd.read_excel(f, sheet_name, index_col=False)
             # Identify the index of the first row with at least one NaN value
 
-            first_nan_row = self.input_df.index[self.input_df.isna().any(axis=1)]
-            if not first_nan_row.empty:
-                first_nan_row_index = first_nan_row[0]
+            first_date_row_index = Utils.find_first_date_row(self.input_df)
+            if first_date_row_index != -1:
                 # Keep only the rows before the first row with NaN
-                self.input_df = self.input_df.iloc[:first_nan_row_index]
+                columns = self.input_df.iloc[first_date_row_index].values
+                clean_dates = [x for i, x in enumerate(columns) if
+                               pd.to_datetime(x) is not pd.NaT and x not in columns[:i]]
+                if len(clean_dates) > 0:
+                    self.columns = ["DOT", "DOT sig"]
+                    last_date = clean_dates[0]
+                    for date in clean_dates[1:]:
+                        self.columns.append(str((date - last_date).days) + "DAT")
+                        self.columns.append(str((date - last_date).days) + "DAT sig")
+                else:
+                    self.columns = ["DOT", "DOT sig", "3DAT", "3DAT sig", "7DAT", "7DAT sig", "10DAT", "10DAT sig",
+                                    "14DAT",
+                                    "14DAT sig"]
+
+                self.input_df = self.input_df.iloc[:first_date_row_index]
             columns = list(self.input_df.columns)
             self.tv1["column"] = columns
             self.tv1["show"] = "headings"

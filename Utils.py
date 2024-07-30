@@ -130,7 +130,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
         if type(col) is str and "שכיחות" in col:
             frequency = True
     # Find the index of the 'DOT' column
-    for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
+    for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=len(df.columns)):
         for cell in row:
             cell.font = font
             cell.border = border
@@ -164,3 +164,14 @@ def write_text_to_excel(filename, text, sheet_name='Sheet1'):
     cell = ws.cell(row=start_row, column=1, value=text)
     cell.font = font
     wb.save(filename)
+# Function to find the first row with the date format
+def find_first_date_row(df):
+    for index, row in df.iterrows():
+        for col in row:
+            try:
+                pd.to_datetime(col, format='%m/%d/%y')
+                return index
+            except (ValueError, TypeError):
+                continue
+    else:
+        return -1
