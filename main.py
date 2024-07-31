@@ -130,6 +130,18 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             self.output_df.insert(0, label, treatment_means.keys())
             # self.output_df = self.output_df.sort_values(by=label, key=lambda col: col.map(custom_sort_key))
             Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
+            # Drop columns containing 'sig' in their name
+            self.output_df = self.output_df.drop(columns=[col for col in self.output_df.columns if 'sig' in col])
+            Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
+            first_row = self.output_df.iloc[0, 1:]
+
+            def is_numeric(row):
+                return pd.to_numeric(row, errors='coerce').notnull().all()
+
+            self.output_df.iloc[:, 1:] = self.output_df.iloc[:, 1:].apply(
+                lambda row: 100 - ((row / first_row) * 100 if is_numeric(row) else row),
+                axis=1)
+            Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')
@@ -139,8 +151,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=Utils.reverse_hebrew_sentence(Path(self.filename).stem))
             self.input_df = pd.read_excel(f, sheet_name, index_col=False)
-            # Identify the index of the first row with at least one NaN value
-
+            # Identify the index of the first row
             first_date_row_index = Utils.find_first_date_row(self.input_df)
             if first_date_row_index != -1:
                 # Keep only the rows before the first row with NaN

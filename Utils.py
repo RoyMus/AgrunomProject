@@ -157,13 +157,15 @@ def write_text_to_excel(filename, text, sheet_name='Sheet1'):
         wb = Workbook()
         ws = wb.active
         ws.title = sheet_name
-    font = Font(name='David', size=12,bold=True)
+    font = Font(name='David', size=12, bold=True)
     # Find the next empty row
     start_row = ws.max_row + 2
     # Write the text to the first cell in the next empty row
     cell = ws.cell(row=start_row, column=1, value=text)
     cell.font = font
     wb.save(filename)
+
+
 # Function to find the first row with the date format
 def find_first_date_row(df):
     for index, row in df.iterrows():
