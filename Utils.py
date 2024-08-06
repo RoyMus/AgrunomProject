@@ -1,9 +1,12 @@
 from pathlib import Path
 import customtkinter
 from openpyxl import load_workbook
+from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Font, Border, Side, Alignment
+from openpyxl.chart.layout import Layout, ManualLayout
 import shutil
 import pandas as pd
+from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 
 
@@ -143,6 +146,42 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
     book.save(filename)
+    return startrow + 2,len(df.columns)
+
+
+def append_chart_to_excel_openpy(filename, startrow, len_df, sheet_name):
+    # Step 1: Load the existing workbook and worksheet
+    wb = load_workbook(filename)
+    ws = wb[sheet_name]
+
+    # Step 5: Create a BarChart object
+    chart = BarChart()
+    chart.title = 'כיממות צעירות'
+    chart.x_axis.title = "טקר"
+    chart.y_axis.title = "מקס"
+    chart.layout = Layout(
+        ManualLayout(
+            x=0.05, y=0.05,
+            h=0.8, w=0.8,
+            xMode="edge",
+            yMode="edge",
+        )
+    )
+    # Step 6: Define data for the chart
+    data_range = Reference(ws, min_col=2, min_row=startrow, max_col=len_df, max_row=ws.max_row)
+    categories = Reference(ws, min_col=1, min_row=startrow + 1, max_row=ws.max_row)
+
+    # Add data and categories to the chart
+    chart.add_data(data_range, titles_from_data=True)
+    chart.set_categories(categories)
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
+    # Step 7: Insert the chart into the worksheet
+    AsciiOfLetter = ord('A')
+    IncrementedLettersAscii = AsciiOfLetter + len_df + 2
+    ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow}")
+    # Step 8: Save the Excel file
+    wb.save(filename)
 
 
 def write_text_to_excel(filename, text, sheet_name='Sheet1'):
