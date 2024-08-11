@@ -149,16 +149,14 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
     return startrow + 2,len(df.columns)
 
 
-def append_chart_to_excel_openpy(filename, startrow, len_df, sheet_name):
+def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_name,cropped):
     # Step 1: Load the existing workbook and worksheet
     wb = load_workbook(filename)
     ws = wb[sheet_name]
 
     # Step 5: Create a BarChart object
     chart = BarChart()
-    chart.title = 'כיממות צעירות'
-    chart.x_axis.title = "טקר"
-    chart.y_axis.title = "מקס"
+    chart.title = name
     chart.layout = Layout(
         ManualLayout(
             x=0.05, y=0.05,
@@ -167,9 +165,11 @@ def append_chart_to_excel_openpy(filename, startrow, len_df, sheet_name):
             yMode="edge",
         )
     )
+    if not cropped:
+        startrow = startrow + 1
     # Step 6: Define data for the chart
-    data_range = Reference(ws, min_col=2, min_row=startrow, max_col=len_df, max_row=ws.max_row)
-    categories = Reference(ws, min_col=1, min_row=startrow + 1, max_row=ws.max_row)
+    data_range = Reference(ws, min_col=column+1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
+    categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
 
     # Add data and categories to the chart
     chart.add_data(data_range, titles_from_data=True)
