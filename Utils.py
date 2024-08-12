@@ -160,7 +160,6 @@ def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, 
     # Step 5: Create a BarChart object
     chart = BarChart()
     chart.title = name
-    chart.y_axis.title = y_axis_title
     chart.legend.position = 'b'
     chart.layout = Layout(
         ManualLayout(
@@ -198,7 +197,7 @@ def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, 
         chart.y_axis.title = "%"
 
     else:
-        chart.y_axis.title = label
+        chart.y_axis.title = y_axis_title
     # Step 7: Insert the chart into the worksheet
     AsciiOfLetter = ord('A')
     IncrementedLettersAscii = AsciiOfLetter + len_df + 2
