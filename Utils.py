@@ -1,11 +1,14 @@
 from pathlib import Path
 import customtkinter
+import openpyxl.drawing.text
 from openpyxl import load_workbook
 from openpyxl.chart import BarChart, Reference
+from openpyxl.drawing.text import CharacterProperties, ParagraphProperties, Paragraph
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.layout import Layout, ManualLayout
 import shutil
 import pandas as pd
+from openpyxl.chart.text import RichText
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 
@@ -146,10 +149,10 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
     book.save(filename)
-    return startrow + 2,len(df.columns)
+    return startrow + 2, len(df.columns)
 
 
-def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_name,cropped):
+def append_chart_to_excel_openpy(name, filename, startrow, len_df, column, sheet_name, cropped, label):
     # Step 1: Load the existing workbook and worksheet
     wb = load_workbook(filename)
     ws = wb[sheet_name]
@@ -159,16 +162,29 @@ def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_n
     chart.title = name
     chart.layout = Layout(
         ManualLayout(
-            x=0.05, y=0.05,
+            x=0.05, y=0.2,
             h=0.8, w=0.8,
             xMode="edge",
             yMode="edge",
         )
     )
+
+    chart_title_font = openpyxl.drawing.text.Font(typeface='Calibri')
+    chart_title_props = CharacterProperties(
+        sz=1400,  # Size in EMU (14pt * 100)
+        b=True,  # Bold
+        u="sng",  # Underline (single)
+        solidFill="FF0000"  # Red color in hex (FF0000)
+    )
+
+    # Apply the font settings to the title
+    chart.title.tx.rich.p[0].r[0].rPr = chart_title_props
+    chart.title.tx.rich.p[0].r[0].rPr.latin = chart_title_font
+
     if not cropped:
         startrow = startrow + 1
     # Step 6: Define data for the chart
-    data_range = Reference(ws, min_col=column+1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
+    data_range = Reference(ws, min_col=column + 1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
     categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
 
     # Add data and categories to the chart
@@ -176,6 +192,13 @@ def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_n
     chart.set_categories(categories)
     chart.x_axis.delete = False
     chart.y_axis.delete = False
+    if cropped:
+        chart.y_axis.scaling.min = 0
+        chart.y_axis.scaling.max = 100
+        chart.y_axis.title = "%"
+
+    else:
+        chart.y_axis.title = label
     # Step 7: Insert the chart into the worksheet
     AsciiOfLetter = ord('A')
     IncrementedLettersAscii = AsciiOfLetter + len_df + 2
