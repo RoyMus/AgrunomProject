@@ -6,6 +6,7 @@ from openpyxl.chart import BarChart, Reference
 from openpyxl.drawing.text import CharacterProperties, ParagraphProperties, Paragraph
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.layout import Layout, ManualLayout
+from openpyxl.chart.shapes import GraphicalProperties
 import shutil
 import pandas as pd
 from openpyxl.chart.text import RichText
@@ -161,6 +162,9 @@ def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, 
     chart = BarChart()
     chart.title = name
     chart.legend.position = 'b'
+    chart.graphical_properties = GraphicalProperties()
+    chart.graphical_properties.line.noFill = True
+    chart.graphical_properties.line.prstDash = None
     chart.layout = Layout(
         ManualLayout(
             x=0, y=0,
