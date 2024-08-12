@@ -132,8 +132,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
             # Drop columns containing 'sig' in their name
             self.output_df = self.output_df.drop(columns=[col for col in self.output_df.columns if 'sig' in col])
-            row,df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
-            Utils.append_chart_to_excel_openpy(label,output_path,row,df_len,1,"גרפים",cropped=False)
+            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
+            Utils.append_chart_to_excel_openpy(label,f"number of {label} per leaf in average",output_path,row,df_len,1,"גרפים",cropped=False)
             first_row = self.output_df.iloc[0, 1:]
 
             def is_numeric(row):
@@ -142,8 +142,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             self.output_df.iloc[:, 1:] = self.output_df.iloc[:, 1:].apply(
                 lambda row: 100 - ((row / first_row) * 100 if is_numeric(row) else row),
                 axis=1)
-            row,df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
-            Utils.append_chart_to_excel_openpy(f"{label} - ירידה באחוזים בהשוואה לקונטרול",output_path, row + 1,df_len,2, "גרפים", cropped=True)
+            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
+            Utils.append_chart_to_excel_openpy(label,f"decrease(%) of {label} as correlation to control",output_path, row + 1,df_len,2, "גרפים", cropped=True)
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')

@@ -2,6 +2,8 @@ from pathlib import Path
 import customtkinter
 from openpyxl import load_workbook
 from openpyxl.chart import BarChart, Reference
+from openpyxl.chart.data_source import NumDataSource, StrRef, AxDataSource, NumRef
+from openpyxl.chart.series import SeriesLabel, XYSeries, Series
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.layout import Layout, ManualLayout
 import shutil
@@ -80,11 +82,11 @@ def reverse_hebrew_sentence(sentence):
 
 def custom_sort_key(val):
     if val == 'UTC':
-        return (0, '')  # Make "UTC" come first
+        return 0, ''  # Make "UTC" come first
     try:
-        return (1, int(val))  # Then sort by numeric values
+        return 1, int(val)  # Then sort by numeric values
     except ValueError:
-        return (2, str(val))  # Fallback to string comparison for other values
+        return 2, str(val)  # Fallback to string comparison for other values
 
 
 def generate_new_file(filename):
@@ -146,10 +148,10 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
     book.save(filename)
-    return startrow + 2,len(df.columns)
+    return startrow + 2, len(df.columns)
 
 
-def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_name,cropped):
+def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, column, sheet_name, cropped):
     # Step 1: Load the existing workbook and worksheet
     wb = load_workbook(filename)
     ws = wb[sheet_name]
@@ -157,18 +159,18 @@ def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_n
     # Step 5: Create a BarChart object
     chart = BarChart()
     chart.title = name
+    chart.y_axis.title = y_axis_title
+    chart.legend.position = 'b'
     chart.layout = Layout(
         ManualLayout(
-            x=0.05, y=0.05,
-            h=0.8, w=0.8,
-            xMode="edge",
-            yMode="edge",
+            x=0, y=0,
+            h=0.8, w=0.8
         )
     )
     if not cropped:
         startrow = startrow + 1
     # Step 6: Define data for the chart
-    data_range = Reference(ws, min_col=column+1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
+    data_range = Reference(ws, min_col=column + 1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
     categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
 
     # Add data and categories to the chart
@@ -182,6 +184,30 @@ def append_chart_to_excel_openpy(name,filename, startrow, len_df,column, sheet_n
     ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow}")
     # Step 8: Save the Excel file
     wb.save(filename)
+
+
+# def custom_series_factory(values, titles):
+#
+#     for value in enumerate(values):
+#         title = u"{0}!{1}".format(values.sheetname, cell)
+#         title = SeriesLabel(strRef=StrRef(title))
+#     elif title is not None:
+#         title = SeriesLabel(v=title)
+#
+#     source = NumDataSource(numRef=NumRef(f=values))
+#     if xvalues is not None:
+#         if not isinstance(xvalues, Reference):
+#             xvalues = Reference(range_string=xvalues)
+#         series = XYSeries()
+#         series.yVal = source
+#         series.xVal = AxDataSource(numRef=NumRef(f=xvalues))
+#     else:
+#         series = Series()
+#         series.val = source
+#
+#     if title is not None:
+#         series.title = title
+#     return series
 
 
 def write_text_to_excel(filename, text, sheet_name='Sheet1'):
