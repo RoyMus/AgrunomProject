@@ -57,12 +57,13 @@ def calculate_significant_letters(SortedTreatementDictionary, t_critical_value, 
                                            LetterCounter)
     return sigByKey
 
+
 def calculate_significant_letters_tukey(SortedTreatementDictionary):
     keys = list(SortedTreatementDictionary.keys())
     sigByKey = {key: set() for key in keys}
     LetterCounter = 'A'
     calculate_signficant_letters_recursion_tukey(SortedTreatementDictionary, sigByKey, keys,
-                                           LetterCounter)
+                                                 LetterCounter)
     return sigByKey
 
 
@@ -94,8 +95,9 @@ def calculate_signficant_letters_recursion(SortedTreatementDictionary, t_critica
             return
         sigByKey[key].add(LetterCounter)
 
+
 def calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary, sigByKey, keys,
-                                           LetterCounter):
+                                                 LetterCounter):
     def IncrementLetterCounter(LetterCounter):
         AsciiOfLetter = ord(LetterCounter)
         IncrementedLettersAscii = AsciiOfLetter + 1
@@ -117,7 +119,7 @@ def calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary
                 is_critical_dif_second = SortedTukeyTreatementDictionary[key][secondKey]
                 if not is_critical_dif_second:
                     calculate_signficant_letters_recursion_tukey(SortedTukeyTreatementDictionary, sigByKey,
-                                                           keys[index2 + 1:], LetterCounter)
+                                                                 keys[index2 + 1:], LetterCounter)
                     return
             return
         sigByKey[key].add(LetterCounter)
@@ -146,6 +148,3 @@ def IsCriticalDifference(tStatistic, tAsteriskValue):
 
 def StudentsT(firstDatasetMean, secondDatasetMean, LSD):
     return math.fabs(firstDatasetMean - secondDatasetMean) - LSD
-
-
-

@@ -142,8 +142,9 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             self.output_df.iloc[:, 1:] = self.output_df.iloc[:, 1:].apply(
                 lambda row: 100 - ((row / first_row) * 100 if is_numeric(row) else row),
                 axis=1)
+            self.output_df = self.output_df.drop(index=0, columns=self.output_df.columns[1])
             row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
-            Utils.append_chart_to_excel_openpy(label,f"Decrease(%) of {label} as correlation to control",output_path, row + 1,df_len,2, "גרפים", cropped=True)
+            Utils.append_chart_to_excel_openpy(label,f"Decrease(%) of {label} as correlation to control",output_path, row + 1,df_len,1, "גרפים", cropped=True)
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')

@@ -153,7 +153,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
     return startrow + 2, len(df.columns)
 
 
-def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, column, sheet_name, cropped):
+def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,flip_x_y=False):
     # Step 1: Load the existing workbook and worksheet
     wb = load_workbook(filename)
     ws = wb[sheet_name]
@@ -183,15 +183,20 @@ def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, 
     # Apply the font settings to the title
     chart.title.tx.rich.p[0].r[0].rPr = chart_title_props
     chart.title.tx.rich.p[0].r[0].rPr.latin = chart_title_font
-
+    # Step 6: Define data for the chart
     if not cropped:
         startrow = startrow + 1
-    # Step 6: Define data for the chart
-    data_range = Reference(ws, min_col=column + 1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
-    categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
+    from_rows = False
+    if flip_x_y:
+        from_rows = True
+        data_range = Reference(ws, min_col=1, min_row=startrow, max_col=len_df, max_row=ws.max_row)
+        categories = Reference(ws, min_col=2, min_row=startrow -1, max_row=startrow -1, max_col=len_df)
+    else:
+        data_range = Reference(ws, min_col=column + 1, min_row=startrow -1, max_col=len_df, max_row=ws.max_row)
+        categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
 
     # Add data and categories to the chart
-    chart.add_data(data_range, titles_from_data=True)
+    chart.add_data(data_range, from_rows=from_rows,titles_from_data=True)
     chart.set_categories(categories)
     chart.x_axis.delete = False
     chart.y_axis.delete = False
@@ -204,34 +209,13 @@ def append_chart_to_excel_openpy(y_axis_title,name, filename, startrow, len_df, 
         chart.y_axis.title = y_axis_title
     # Step 7: Insert the chart into the worksheet
     AsciiOfLetter = ord('A')
-    IncrementedLettersAscii = AsciiOfLetter + len_df + 2
+    number_of_lines_to_add = 2
+    if cropped:
+        number_of_lines_to_add += 1
+    IncrementedLettersAscii = AsciiOfLetter + len_df + number_of_lines_to_add
     ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow}")
     # Step 8: Save the Excel file
     wb.save(filename)
-
-
-# def custom_series_factory(values, titles):
-#
-#     for value in enumerate(values):
-#         title = u"{0}!{1}".format(values.sheetname, cell)
-#         title = SeriesLabel(strRef=StrRef(title))
-#     elif title is not None:
-#         title = SeriesLabel(v=title)
-#
-#     source = NumDataSource(numRef=NumRef(f=values))
-#     if xvalues is not None:
-#         if not isinstance(xvalues, Reference):
-#             xvalues = Reference(range_string=xvalues)
-#         series = XYSeries()
-#         series.yVal = source
-#         series.xVal = AxDataSource(numRef=NumRef(f=xvalues))
-#     else:
-#         series = Series()
-#         series.val = source
-#
-#     if title is not None:
-#         series.title = title
-#     return series
 
 
 def write_text_to_excel(filename, text, sheet_name='Sheet1'):
