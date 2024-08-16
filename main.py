@@ -39,9 +39,11 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         self.tabview.add("X")
         self.tabview.add("Y")
         self.tabview.add("Block")
+        self.tabview.add("Graphs")
         self.tabview.tab("X").grid_columnconfigure(0, weight=1)  # configure grid of individual tabs
         self.tabview.tab("Y").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Block").grid_columnconfigure(0, weight=1)
+        self.tabview.tab("Graphs").grid_columnconfigure(0, weight=1)
         self.excel_frame = customtkinter.CTkScrollableFrame(self.root, label_text="Excel Data",
                                                             orientation="horizontal")
         self.tv1 = ttk.Treeview(self.excel_frame)
@@ -53,7 +55,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         x_value = self.x.get_checked_item()
         block = self.block_selection.get_checked_item()
         items = self.scrollable_checkbox_frame.get_checked_items()
-
+        flip_xy = self.chart_selection.get_checked_item()
+        flip_xy = flip_xy != "ימים במקרא"
         if len(items) == 0:
             messagebox.showerror("No Y chosen", "Please choose at least one Y value")
             return
@@ -132,8 +135,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             Utils.append_df_to_excel(output_path, self.output_df, "טבלאות")
             # Drop columns containing 'sig' in their name
             self.output_df = self.output_df.drop(columns=[col for col in self.output_df.columns if 'sig' in col])
-            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
-            Utils.append_chart_to_excel_openpy(label,f"Number of {label} per leaf in average",output_path,row,df_len,1,"גרפים",cropped=False)
+            row, df_len = Utils.append_df_to_excel(output_path, self.output_df,"גרפים",start_distance=4)
+            Utils.append_chart_to_excel_openpy(label,f"Number of {label} per leaf in average",output_path,row,df_len,1,"גרפים",cropped=False,flip_x_y=flip_xy)
             first_row = self.output_df.iloc[0, 1:]
 
             def is_numeric(row):
@@ -143,8 +146,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 lambda row: 100 - ((row / first_row) * 100 if is_numeric(row) else row),
                 axis=1)
             self.output_df = self.output_df.drop(index=0, columns=self.output_df.columns[1])
-            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים")
-            Utils.append_chart_to_excel_openpy(label,f"Decrease(%) of {label} as correlation to control",output_path, row + 1,df_len,1, "גרפים", cropped=True)
+            row, df_len = Utils.append_df_to_excel(output_path, self.output_df,"גרפים",start_distance=4)
+            Utils.append_chart_to_excel_openpy(label,f"Decrease(%) of {label} as correlation to control",output_path, row + 1,df_len,1, "גרפים", cropped=True,flip_x_y=flip_xy)
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')
@@ -197,6 +200,9 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             blocks.insert(0, "ללא")
             self.block_selection = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks)
             self.block_selection.grid(row=0, column=0)
+
+            self.chart_selection = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("Graphs"), item_list=["ימים במקרא","ימים בציר X"])
+            self.chart_selection.grid(row=0, column=0)
             calc_button.grid(row=2, column=0, pady=(15, 0), padx=10)
             self.excel_frame.grid(row=1, column=0, sticky="nsew", columnspan=2)
             tukey_calc = customtkinter.CTkButton(self.upper_frame, text="Calculate Pairwise Tukey ",

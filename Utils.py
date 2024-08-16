@@ -3,6 +3,7 @@ import customtkinter
 import openpyxl.drawing.text
 from openpyxl import load_workbook
 from openpyxl.chart import BarChart, Reference
+from openpyxl.drawing.colors import ColorChoice
 from openpyxl.drawing.text import CharacterProperties, ParagraphProperties, Paragraph
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.layout import Layout, ManualLayout
@@ -101,7 +102,7 @@ def generate_new_file(filename):
     return output_path
 
 
-def append_df_to_excel(filename, df, sheet_name='Sheet1'):
+def append_df_to_excel(filename, df, sheet_name='Sheet1',start_distance=1):
     # Try to open an existing workbook
     try:
         book = load_workbook(filename)
@@ -116,7 +117,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
         writer = pd.ExcelWriter(filename, engine='openpyxl', mode='w')
         startrow = 0
     # Write the dataframe to the Excel file
-    df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + 1, index=False, header=True)
+    df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + start_distance, index=False, header=True)
     writer.close()
     # Reload the workbook and the sheet to apply formatting
     book = load_workbook(filename)
@@ -137,7 +138,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
         if type(col) is str and "שכיחות" in col:
             frequency = True
     # Find the index of the 'DOT' column
-    for row in sheet.iter_rows(min_row=startrow + 2, max_row=sheet.max_row, min_col=1, max_col=len(df.columns)):
+    for row in sheet.iter_rows(min_row=startrow + start_distance + 1, max_row=sheet.max_row, min_col=1, max_col=len(df.columns)):
         for cell in row:
             cell.font = font
             cell.border = border
@@ -150,7 +151,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1'):
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
     book.save(filename)
-    return startrow + 2, len(df.columns)
+    return startrow + start_distance + 1, len(df.columns)
 
 
 def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,flip_x_y=False):
@@ -165,6 +166,8 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.graphical_properties = GraphicalProperties()
     chart.graphical_properties.line.noFill = True
     chart.graphical_properties.line.prstDash = None
+    chart.width = 17
+    chart.height = 8
     chart.layout = Layout(
         ManualLayout(
             x=0, y=0,
@@ -200,20 +203,38 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.set_categories(categories)
     chart.x_axis.delete = False
     chart.y_axis.delete = False
+    chart.y_axis.title = "YourMom"
     if cropped:
         chart.y_axis.scaling.min = 0
         chart.y_axis.scaling.max = 100
-        chart.y_axis.title = "%"
+        y_axis_title = "%"
+    # y-title text properties
+    yt_color = "ff0000"
 
-    else:
-        chart.y_axis.title = y_axis_title
+    xml = f"""
+    <txPr>
+      <a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <a:r>
+           <a:rPr b="1" i="0" sz="1000" spc="-1" strike="noStrike">
+              <a:solidFill>
+                 <a:srgbClr val="{yt_color}" />
+              </a:solidFill>
+              <a:latin typeface="Calibri" />
+           </a:rPr>
+           <a:t>{y_axis_title}</a:t>
+        </a:r>
+      </a:p>
+    </txPr>
+    """
+
+    chart.y_axis.title.tx.rich = RichText.from_tree(openpyxl.xml.functions.fromstring(xml))
     # Step 7: Insert the chart into the worksheet
     AsciiOfLetter = ord('A')
     number_of_lines_to_add = 2
     if cropped:
         number_of_lines_to_add += 1
     IncrementedLettersAscii = AsciiOfLetter + len_df + number_of_lines_to_add
-    ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow}")
+    ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow -1}")
     # Step 8: Save the Excel file
     wb.save(filename)
 
