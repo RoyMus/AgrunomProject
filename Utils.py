@@ -117,6 +117,8 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1',start_distance=1):
         writer = pd.ExcelWriter(filename, engine='openpyxl', mode='w')
         startrow = 0
     # Write the dataframe to the Excel file
+    if startrow == 0:
+        start_distance = 2
     df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + start_distance, index=False, header=True)
     writer.close()
     # Reload the workbook and the sheet to apply formatting
@@ -167,11 +169,28 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.graphical_properties.line.noFill = True
     chart.graphical_properties.line.prstDash = None
     chart.width = 21
-    chart.height = 5.5
+    h = 0.8
+    w = 0.8
+    x = 0
+    y = 0
+    hl = None
+    if flip_x_y:
+        h = 0.4
+        w = 0.8
+        x = 0
+        y = 0
+        hl = 0.25
+
     chart.layout = Layout(
         ManualLayout(
-            x=0, y=0,
-            h=0.8, w=0.8
+            x=x, y=y,
+            h=h, w=w
+        )
+    )
+    chart.legend.layout = Layout(
+        ManualLayout(
+            x=0, y=1,
+            w=1,h=hl
         )
     )
 
@@ -203,7 +222,7 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.set_categories(categories)
     chart.x_axis.delete = False
     chart.y_axis.delete = False
-    chart.y_axis.title = "YourMom"
+    chart.y_axis.title = ""
     if cropped:
         chart.y_axis.scaling.min = 0
         chart.y_axis.scaling.max = 100
