@@ -166,8 +166,8 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.graphical_properties = GraphicalProperties()
     chart.graphical_properties.line.noFill = True
     chart.graphical_properties.line.prstDash = None
-    chart.width = 17
-    chart.height = 8
+    chart.width = 21
+    chart.height = 5.5
     chart.layout = Layout(
         ManualLayout(
             x=0, y=0,
