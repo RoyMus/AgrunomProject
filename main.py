@@ -153,6 +153,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
             os.system(f'explorer /select,"{output_path}"')
+            os.startfile(output_path)
 
     def init_ui(self, sheet_name):
         self.newWindow.withdraw()
@@ -191,15 +192,21 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             for col in columns:
                 if col.split('.')[0] not in unduplicatedcolumns:
                     unduplicatedcolumns.append(col)
-            self.x = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=unduplicatedcolumns)
+            x_values = unduplicatedcolumns
+            y_values = unduplicatedcolumns
+            if "טיפול" in unduplicatedcolumns:
+                x_values = ["טיפול"]
+                y_values.remove("טיפול")
+            if "חזרה מספר" in unduplicatedcolumns:
+                blocks = ["ללא","חזרה מספר"]
+                y_values.remove("חזרה מספר")
+            self.x = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=x_values)
             self.x.grid(row=0, column=0)
             self.scrollable_checkbox_frame = Utils.ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
-                                                                           item_list=unduplicatedcolumns)
+                                                                           item_list=y_values)
             self.scrollable_checkbox_frame.grid(row=0, column=0)
             calc_button = customtkinter.CTkButton(self.upper_frame, text="Calculate Each Pair Student's T's",
                                                   command=self.calculate)
-            blocks = unduplicatedcolumns
-            blocks.insert(0, "ללא")
             self.block_selection = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("Block"), item_list=blocks)
             self.block_selection.grid(row=0, column=0)
 
