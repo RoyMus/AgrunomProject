@@ -102,7 +102,22 @@ def generate_new_file(filename):
     return output_path
 
 
-def append_df_to_excel(filename, df, sheet_name='Sheet1',start_distance=1):
+def generate_excel_formula(df, start_row):
+    # Write the DataFrame to the Excel worksheet
+    dictOutput = {}
+    start_row += 1
+    for i, col in enumerate(df.columns[1:]):
+        dictOutput[col] = []
+
+    for i, col in enumerate(df.columns[1:]):
+        for row in range(len(df) - 1):
+            currentRow = start_row + row + 1
+            dictOutput[col].append(
+                f"=100 - ({chr(ord('A') + i + 1)}{currentRow} / {chr(ord('A') + i + 1)}${start_row} * 100)")
+    return dictOutput
+
+
+def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1):
     # Try to open an existing workbook
     try:
         book = load_workbook(filename)
@@ -140,7 +155,8 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1',start_distance=1):
         if type(col) is str and "שכיחות" in col:
             frequency = True
     # Find the index of the 'DOT' column
-    for row in sheet.iter_rows(min_row=startrow + start_distance + 1, max_row=sheet.max_row, min_col=1, max_col=len(df.columns)):
+    for row in sheet.iter_rows(min_row=startrow + start_distance + 1, max_row=sheet.max_row, min_col=1,
+                               max_col=len(df.columns)):
         for cell in row:
             cell.font = font
             cell.border = border
@@ -156,7 +172,8 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1',start_distance=1):
     return startrow + start_distance + 1, len(df.columns)
 
 
-def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,flip_x_y=False):
+def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,
+                                 flip_x_y=False):
     # Step 1: Load the existing workbook and worksheet
     wb = load_workbook(filename)
     ws = wb[sheet_name]
@@ -190,7 +207,7 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart.legend.layout = Layout(
         ManualLayout(
             x=0, y=1,
-            w=1,h=hl
+            w=1, h=hl
         )
     )
 
@@ -212,13 +229,13 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     if flip_x_y:
         from_rows = True
         data_range = Reference(ws, min_col=1, min_row=startrow, max_col=len_df, max_row=ws.max_row)
-        categories = Reference(ws, min_col=2, min_row=startrow -1, max_row=startrow -1, max_col=len_df)
+        categories = Reference(ws, min_col=2, min_row=startrow - 1, max_row=startrow - 1, max_col=len_df)
     else:
-        data_range = Reference(ws, min_col=column + 1, min_row=startrow -1, max_col=len_df, max_row=ws.max_row)
+        data_range = Reference(ws, min_col=column + 1, min_row=startrow - 1, max_col=len_df, max_row=ws.max_row)
         categories = Reference(ws, min_col=1, min_row=startrow, max_row=ws.max_row)
 
     # Add data and categories to the chart
-    chart.add_data(data_range, from_rows=from_rows,titles_from_data=True)
+    chart.add_data(data_range, from_rows=from_rows, titles_from_data=True)
     chart.set_categories(categories)
     chart.x_axis.delete = False
     chart.y_axis.delete = False
@@ -253,7 +270,7 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     if cropped:
         number_of_lines_to_add += 1
     IncrementedLettersAscii = AsciiOfLetter + len_df + number_of_lines_to_add
-    ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow -1}")
+    ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow - 1}")
     # Step 8: Save the Excel file
     wb.save(filename)
 
@@ -284,7 +301,9 @@ def find_first_date_row(df):
     for index, row in df.iterrows():
         for col in row:
             try:
-                pd.to_datetime(col, format='%m/%d/%y')
+                row_with_datetime = pd.to_datetime(col, format='%m/%d/%y')
+                if row_with_datetime == pd.NaT:
+                    continue
                 return index
             except (ValueError, TypeError):
                 continue

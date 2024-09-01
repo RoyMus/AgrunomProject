@@ -138,16 +138,11 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים", start_distance=4)
             Utils.append_chart_to_excel_openpy(label, f"Number of {label} per leaf in average", output_path, row,
                                                df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
-            first_row = self.output_df.iloc[0, 1:]
-
-            def is_numeric(row):
-                return pd.to_numeric(row, errors='coerce').notnull().all()
-
-            self.output_df.iloc[:, 1:] = self.output_df.iloc[:, 1:].apply(
-                lambda row: 100 - ((row / first_row) * 100 if is_numeric(row) else row),
-                axis=1)
-            self.output_df = self.output_df.drop(index=0, columns=self.output_df.columns[1])
-            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים", start_distance=4)
+            output_dict = Utils.generate_excel_formula(self.output_df,row)
+            formulated_df = pd.DataFrame(output_dict)
+            formulated_df.iloc[:,0] = self.output_df.iloc[1:,0]
+            formulated_df = formulated_df.rename(columns={"DOT":self.output_df.columns[0]})
+            row, df_len = Utils.append_df_to_excel(output_path, formulated_df, "גרפים", start_distance=4)
             Utils.append_chart_to_excel_openpy(label, f"Decrease(%) of {label} as correlation to control", output_path,
                                                row + 1, df_len, 1, "גרפים", cropped=True, flip_x_y=flip_xy)
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
@@ -160,6 +155,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         with open(self.filename, 'rb') as f:
             self.excel_frame._label.configure(text=Utils.reverse_hebrew_sentence(Path(self.filename).stem))
             self.input_df = pd.read_excel(f, sheet_name, index_col=False)
+            self.input_df.dropna(how='all', axis=1, inplace=True)
             # Identify the index of the first row
             first_date_row_index = Utils.find_first_date_row(self.input_df)
             if first_date_row_index != -1:
@@ -198,7 +194,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 x_values = ["טיפול"]
                 y_values.remove("טיפול")
             if "חזרה מספר" in unduplicatedcolumns:
-                blocks = ["ללא","חזרה מספר"]
+                blocks = ["ללא", "חזרה מספר"]
                 y_values.remove("חזרה מספר")
             self.x = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=x_values)
             self.x.grid(row=0, column=0)
