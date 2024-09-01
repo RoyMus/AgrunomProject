@@ -243,7 +243,6 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     if cropped:
         chart.y_axis.scaling.min = 0
         chart.y_axis.scaling.max = 100
-        y_axis_title = "%"
     # y-title text properties
     yt_color = "ff0000"
 

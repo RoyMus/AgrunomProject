@@ -136,6 +136,11 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             # Drop columns containing 'sig' in their name
             self.output_df = self.output_df.drop(columns=[col for col in self.output_df.columns if 'sig' in col])
             row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים", start_distance=4)
+
+            if "שכיחות" in label:
+                Utils.append_chart_to_excel_openpy("%", f"Frequncy of {label} per leaf in average", output_path, row,
+                                                   df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
+                continue
             Utils.append_chart_to_excel_openpy(label, f"Number of {label} per leaf in average", output_path, row,
                                                df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
             output_dict = Utils.generate_excel_formula(self.output_df,row)
@@ -143,7 +148,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             formulated_df.iloc[:,0] = self.output_df.iloc[1:,0]
             formulated_df = formulated_df.rename(columns={"DOT":self.output_df.columns[0]})
             row, df_len = Utils.append_df_to_excel(output_path, formulated_df, "גרפים", start_distance=4)
-            Utils.append_chart_to_excel_openpy(label, f"Decrease(%) of {label} as correlation to control", output_path,
+            Utils.append_chart_to_excel_openpy("%", f"Decrease(%) of {label} as correlation to control", output_path,
                                                row + 1, df_len, 1, "גרפים", cropped=True, flip_x_y=flip_xy)
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
