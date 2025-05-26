@@ -182,9 +182,9 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     chart = BarChart()
     chart.title = name
     chart.legend.position = 'b'
-    chart.graphical_properties = GraphicalProperties()
-    chart.graphical_properties.line.noFill = True
-    chart.graphical_properties.line.prstDash = None
+    # chart.graphical_properties = GraphicalProperties()
+    # chart.graphical_properties.line.noFill = True
+    # chart.graphical_properties.line.prstDash = None
     chart.width = 21
     h = 0.8
     w = 0.8

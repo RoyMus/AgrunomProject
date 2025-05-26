@@ -60,6 +60,10 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
         if len(items) == 0:
             messagebox.showerror("No Y chosen", "Please choose at least one Y value")
             return
+        if len(self.input_df[x_value]) > 0 and self.input_df[x_value][0] != "UTC":
+            result = messagebox.askokcancel("UTC is not in place","The UTC Column Should Be First, Would You Like To Procced?")
+            if not result:
+                return
         self.output_dict = {}
         output_path = Utils.generate_new_file(self.filename)
         # The text you want to add on top
@@ -166,8 +170,12 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             if first_date_row_index != -1:
                 # Keep only the rows before the first row with NaN
                 columns = self.input_df.iloc[first_date_row_index].values
-                clean_dates = [x for i, x in enumerate(columns) if
-                               pd.to_datetime(x) is not pd.NaT and x not in columns[:i]]
+                try:
+                    clean_dates = [pd.to_datetime(x) for i, x in enumerate(columns) if
+                                   pd.to_datetime(x) is not pd.NaT and x not in columns[:i]]
+                except:
+                    messagebox.showerror("Dates Error", "Please Check The Dates")
+                    return
                 if len(clean_dates) > 0:
                     self.columns = ["DOT", "DOT sig"]
                     last_date = clean_dates[0]
@@ -180,6 +188,9 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                                     "14DAT sig"]
 
                 self.input_df = self.input_df.iloc[:first_date_row_index]
+            else:
+                messagebox.showerror("Dates Error","Please Check The Dates")
+                return
             columns = list(self.input_df.columns)
             self.tv1["column"] = columns
             self.tv1["show"] = "headings"
@@ -195,12 +206,19 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                     unduplicatedcolumns.append(col)
             x_values = unduplicatedcolumns
             y_values = unduplicatedcolumns
+            blocks = ["ללא"]
             if "טיפול" in unduplicatedcolumns:
                 x_values = ["טיפול"]
                 y_values.remove("טיפול")
+            else:
+                messagebox.showerror("Invalid Columns","No Column Named טיפול")
+                return
             if "חזרה מספר" in unduplicatedcolumns:
-                blocks = ["ללא", "חזרה מספר"]
+                blocks.append("חזרה מספר")
                 y_values.remove("חזרה מספר")
+            else:
+                messagebox.showerror("Invalid Columns","No Column Named חזרה מספר")
+                return
             self.x = Utils.ScrollableRadiobuttonFrame(master=self.tabview.tab("X"), item_list=x_values)
             self.x.grid(row=0, column=0)
             self.scrollable_checkbox_frame = Utils.ScrollableCheckBoxFrame(master=self.tabview.tab("Y"),
