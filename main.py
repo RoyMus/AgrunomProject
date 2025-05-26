@@ -104,7 +104,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                         tukey_dictionary[row["group1"]][row["group2"]] = row["reject"] == True
                         tukey_dictionary[row["group2"]][row["group1"]] = row["reject"] == True
 
-                    sigByKey = CalcUtils.calculate_significant_letters_tukey(tukey_dictionary)
+                    sigByKey = CalcUtils.calculate_significant_letters_tukey(tukey_dictionary, list(treatment_means_sorted.keys()))
                 else:
 
                     # Calculate Mean Squared Error (MSE)

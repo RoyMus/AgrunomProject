@@ -58,11 +58,10 @@ def calculate_significant_letters(SortedTreatementDictionary, t_critical_value, 
     return sigByKey
 
 
-def calculate_significant_letters_tukey(SortedTreatementDictionary):
-    keys = list(SortedTreatementDictionary.keys())
-    sigByKey = {key: set() for key in keys}
+def calculate_significant_letters_tukey(SortedTreatementDictionary, sortedKeys):
+    sigByKey = {key: set() for key in sortedKeys}
     LetterCounter = 'A'
-    calculate_signficant_letters_recursion_tukey(SortedTreatementDictionary, sigByKey, keys,
+    calculate_signficant_letters_recursion_tukey(SortedTreatementDictionary, sigByKey, sortedKeys,
                                                  LetterCounter)
     return sigByKey
 
