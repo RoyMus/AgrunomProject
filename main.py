@@ -82,8 +82,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 df = pd.DataFrame(
                     {'Treatment': self.input_df[x_value], 'Value': pd.to_numeric(self.input_df[col], errors='coerce')})
                 df['Treatment'] = df['Treatment'].astype(str)
-                if block != "ללא":
-                    df["Block"] = self.input_df[block].astype('category')
+                if block != "אקראיות גמורה":
+                    df["Block"] = self.input_df["חזרה מספר"].astype('category')
                     model = ols('Value ~ C(Treatment) + C(Block)', data=df).fit()
                 else:
                     model = ols('Value ~ C(Treatment)', data=df).fit()
@@ -97,7 +97,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                                           sorted(treatment_means, key=treatment_means.get, reverse=True)}
 
                 if tukey:
-                    if block != "ללא":
+                    if block != "אקראיות גמורה":
                         mse_error = model.mse_resid
                         df_error = model.df_resid
 
@@ -241,7 +241,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                     unduplicatedcolumns.append(col)
             x_values = unduplicatedcolumns
             y_values = unduplicatedcolumns
-            blocks = ["ללא"]
+            blocks = ["אקראיות גמורה"]
             if "טיפול" in unduplicatedcolumns:
                 x_values = ["טיפול"]
                 y_values.remove("טיפול")
@@ -249,7 +249,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 messagebox.showerror("Invalid Columns","No Column Named טיפול")
                 return
             if "חזרה מספר" in unduplicatedcolumns:
-                blocks.append("חזרה מספר")
+                blocks.append("בלוקים באקראי")
                 y_values.remove("חזרה מספר")
             else:
                 messagebox.showerror("Invalid Columns","No Column Named חזרה מספר")
