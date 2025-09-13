@@ -3,6 +3,7 @@ from tkinter import messagebox, filedialog
 from tkinter import ttk
 import statsmodels.api as sm
 from scipy import stats
+from scipy.stats import studentized_range
 from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import CalcUtils
@@ -96,11 +97,45 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                                           sorted(treatment_means, key=treatment_means.get, reverse=True)}
 
                 if tukey:
-                    # Perform Tukey HSD test
-                    tukey = pairwise_tukeyhsd(endog=df['Value'],
-                                              groups=df['Treatment'],
-                                              alpha=0.05)
-                    tukey_df = pd.DataFrame(data=tukey._results_table.data[1:], columns=tukey._results_table.data[0])
+                    if block != "ללא":
+                        mse_error = model.mse_resid
+                        df_error = model.df_resid
+
+                        treatment_stats = df.groupby('Treatment')['Value'].agg(['mean', 'count'])
+                        treatments = treatment_stats.index.tolist()
+                        means = treatment_stats['mean'].values
+                        n_per_group = treatment_stats['count'].iloc[0]
+                        k = len(treatments)
+
+                        tukey_results = []
+                        for i in range(k):
+                            for j in range(i + 1, k):
+                                group1, group2 = treatments[i], treatments[j]
+                                meandiff = means[j] - means[i]
+
+                                se_diff = np.sqrt(mse_error * (2 / n_per_group))
+
+                                q_critical = studentized_range.ppf(1 - 0.05, k, df_error)
+
+                                margin = q_critical * se_diff / np.sqrt(2)
+
+                                lower = meandiff - margin
+                                upper = meandiff + margin
+
+                                q_stat = abs(meandiff) / (se_diff / np.sqrt(2))
+                                p_adj = 1 - studentized_range.cdf(q_stat, k, df_error)
+
+                                reject = p_adj < 0.05
+                                tukey_results.append([group1, group2, meandiff, p_adj, lower, upper, reject])
+                        tukey_df = pd.DataFrame(tukey_results,
+                                                columns=['group1', 'group2', 'meandiff', 'p-adj', 'lower', 'upper',
+                                                         'reject'])
+                    else:
+                        # Perform Tukey HSD test
+                        tukey = pairwise_tukeyhsd(endog=df['Value'],
+                                                  groups=df['Treatment'],
+                                                  alpha=0.05)
+                        tukey_df = pd.DataFrame(data=tukey._results_table.data[1:], columns=tukey._results_table.data[0])
                     tukey_dictionary = dict()
                     for treatment in treatment_means:
                         tukey_dictionary[treatment] = dict()
