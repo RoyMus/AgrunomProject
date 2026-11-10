@@ -1,3 +1,7 @@
+import colorsys
+import json
+import re
+import sys
 from pathlib import Path
 import customtkinter
 import openpyxl.drawing.text
@@ -8,7 +12,10 @@ from openpyxl.drawing.text import CharacterProperties, ParagraphProperties, Para
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.layout import Layout, ManualLayout
 from openpyxl.chart.shapes import GraphicalProperties
+from openpyxl.drawing.line import LineProperties
 import shutil
+import tempfile
+import zipfile
 import pandas as pd
 from openpyxl.chart.text import RichText
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -16,38 +23,58 @@ from openpyxl.workbook import Workbook
 
 
 class ScrollableCheckBoxFrame(customtkinter.CTkScrollableFrame):
-    def __init__(self, master, item_list, command=None, **kwargs):
+    def __init__(self, master, item_list, command=None, rtl=False, **kwargs):
         super().__init__(master, **kwargs)
 
         self.command = command
+        self.rtl = rtl
+        if rtl:
+            self.grid_columnconfigure(0, weight=1)
         self.checkbox_list = []
+        self.items = {}  # checkbox -> original (logical-order) value
         for i, item in enumerate(item_list):
             self.add_item(item)
 
     def add_item(self, item):
-        checkbox = customtkinter.CTkCheckBox(self, text=reverse_hebrew_sentence(item))
+        checkbox = customtkinter.CTkCheckBox(self, text=to_display(item), checkbox_width=20,
+                                             checkbox_height=20, border_width=2, corner_radius=5)
         if self.command is not None:
             checkbox.configure(command=self.command)
-        checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10))
+        if self.rtl:
+            make_rtl(checkbox)
+            checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10), padx=(0, 4), sticky="e")
+        else:
+            checkbox.grid(row=len(self.checkbox_list), column=0, pady=(0, 10), padx=(4, 0), sticky="w")
         self.checkbox_list.append(checkbox)
+        self.items[checkbox] = item
+
+    def set_all(self, checked):
+        for checkbox in self.checkbox_list:
+            if checked:
+                checkbox.select()
+            else:
+                checkbox.deselect()
 
     def remove_item(self, item):
         for checkbox in self.checkbox_list:
-            if item == checkbox.cget("text"):
+            if item == self.items[checkbox]:
                 checkbox.destroy()
                 self.checkbox_list.remove(checkbox)
+                del self.items[checkbox]
                 return
 
     def get_checked_items(self):
-        return [reverse_hebrew_sentence(checkbox.cget("text")) for checkbox in self.checkbox_list if
-                checkbox.get() == 1]
+        return [self.items[checkbox] for checkbox in self.checkbox_list if checkbox.get() == 1]
 
 
 class ScrollableRadiobuttonFrame(customtkinter.CTkScrollableFrame):
-    def __init__(self, master, item_list, command=None, text_variable=None, **kwargs):
+    def __init__(self, master, item_list, command=None, text_variable=None, rtl=False, **kwargs):
         super().__init__(master, **kwargs)
 
         self.command = command
+        self.rtl = rtl
+        if rtl:
+            self.grid_columnconfigure(0, weight=1)
         if text_variable is not None:
             self.radiobutton_variable = text_variable
         else:
@@ -60,16 +87,20 @@ class ScrollableRadiobuttonFrame(customtkinter.CTkScrollableFrame):
             self.add_item(item)
 
     def add_item(self, item):
-        radiobutton = customtkinter.CTkRadioButton(self, text=reverse_hebrew_sentence(item), value=item,
+        radiobutton = customtkinter.CTkRadioButton(self, text=to_display(item), value=item,
                                                    variable=self.radiobutton_variable)
         if self.command is not None:
             radiobutton.configure(command=self.command)
-        radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10))
+        if self.rtl:
+            make_rtl(radiobutton)
+            radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10), padx=(0, 4), sticky="e")
+        else:
+            radiobutton.grid(row=len(self.radiobutton_list), column=0, pady=(0, 10), padx=(4, 0), sticky="w")
         self.radiobutton_list.append(radiobutton)
 
     def remove_item(self, item):
         for radiobutton in self.radiobutton_list:
-            if item == radiobutton.cget("text"):
+            if item == radiobutton.cget("value"):
                 radiobutton.destroy()
                 self.radiobutton_list.remove(radiobutton)
                 return
@@ -78,9 +109,81 @@ class ScrollableRadiobuttonFrame(customtkinter.CTkScrollableFrame):
         return self.radiobutton_variable.get()
 
 
-def reverse_hebrew_sentence(sentence):
-    split = sentence.split(' ')
-    return " ".join(split[::-1])
+class RadiobuttonGroup(customtkinter.CTkFrame):
+    """Non-scrollable radio group for short option lists; same API as ScrollableRadiobuttonFrame."""
+
+    def __init__(self, master, item_list, rtl=False, default=None, **kwargs):
+        kwargs.setdefault("fg_color", "transparent")
+        super().__init__(master, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+        if default not in item_list:
+            default = item_list[0] if item_list else ""
+        self.radiobutton_variable = customtkinter.StringVar(value=default)
+        for i, item in enumerate(item_list):
+            radiobutton = customtkinter.CTkRadioButton(self, text=to_display(item), value=item,
+                                                       variable=self.radiobutton_variable, radiobutton_width=18,
+                                                       radiobutton_height=18, border_width_checked=5,
+                                                       border_width_unchecked=2)
+            if rtl:
+                make_rtl(radiobutton)
+            radiobutton.grid(row=i, column=0, sticky="e" if rtl else "w", pady=(0, 8))
+
+    def get_checked_item(self):
+        return self.radiobutton_variable.get()
+
+
+HEBREW_CHARS = re.compile(r"[\u0590-\u05FF]")
+
+
+def has_hebrew(text):
+    return isinstance(text, str) and HEBREW_CHARS.search(text) is not None
+
+
+# Unicode RIGHT-TO-LEFT EMBEDDING ... POP DIRECTIONAL FORMATTING (invisible)
+_RTL_START, _RTL_END = "‫", "‬"
+
+
+def to_display(text):
+    """Prepare text for showing in a Tk widget. Display only: always keep and compare the original value.
+
+    - macOS: Tk lays out Hebrew right-to-left itself, so the text is kept as is and just wrapped in
+      an RTL embedding. That makes mixed text like "ימים בציר X" read as one right-to-left sentence
+      (otherwise the "X" ends up on the wrong side).
+    - Other platforms (Windows): Tk draws each Hebrew word correctly but lays the words out
+      left-to-right, so the word order is flipped (the project's original behaviour).
+    Text without Hebrew (English, numbers) is never changed.
+    """
+    if not has_hebrew(text):
+        return text
+    if sys.platform == "darwin":
+        return _RTL_START + text + _RTL_END
+    return " ".join(text.split(" ")[::-1])
+
+
+
+def make_rtl(widget):
+    """Mirror a CTkRadioButton/CTkCheckBox: indicator on the right, text right-aligned to its left.
+    (CustomTkinter has no option for this, so swap its internal grid columns; written against 5.2.2.)"""
+    widget.grid_columnconfigure(0, weight=1)
+    widget.grid_columnconfigure(2, weight=0)
+    widget._canvas.grid(row=0, column=2)
+    widget._text_label.grid(row=0, column=0, sticky="e")
+    widget._text_label["anchor"] = "e"
+
+
+def sheet_is_rtl(filename, sheet_name, columns=()):
+    """True if the sheet is Hebrew: its column headers contain Hebrew, or it's set to
+    right-to-left in Excel."""
+    if any(has_hebrew(str(column)) for column in columns):
+        return True
+    try:
+        workbook = load_workbook(filename)
+        try:
+            return bool(workbook[sheet_name].sheet_view.rightToLeft)
+        finally:
+            workbook.close()
+    except Exception:
+        return False
 
 
 def custom_sort_key(val):
@@ -93,13 +196,86 @@ def custom_sort_key(val):
 
 
 def generate_new_file(filename):
+    """Return the path of the "(app_generated)" copy the results are written into, creating it if needed.
+    Also returns a note (or None) when the copy had to be changed so it could be opened."""
     path = Path(filename)
     output_file = path.with_stem(f"{path.stem}(app_generated)")
     if not Path(output_file).is_file():
         output_path = shutil.copy(filename, output_file)
     else:
         output_path = output_file
-    return output_path
+    return output_path, make_workbook_writable(output_path)
+
+
+# Chart layout values openpyxl accepts (Excel itself allows more, e.g. a legend dragged below the plot)
+_LAYOUT_LIMITS = {"x": (-1, 1), "y": (-1, 1), "w": (0, 1), "h": (0, 1)}
+_MANUAL_LAYOUT = re.compile(r"<(?:\w+:)?manualLayout>.*?</(?:\w+:)?manualLayout>", re.S)
+_LAYOUT_VALUE = re.compile(r'<((?:\w+:)?)([xywh]) val="([^"]*)"')
+
+
+def _clamp_layout_value(match):
+    prefix, key, raw = match.groups()
+    try:
+        value = float(raw)
+    except ValueError:
+        return match.group(0)
+    low, high = _LAYOUT_LIMITS[key]
+    clamped = min(max(value, low), high)
+    return match.group(0) if clamped == value else f'<{prefix}{key} val="{clamped:g}"'
+
+
+def _clamp_chart_layouts(xlsx_path):
+    """Rewrite the chart parts of an .xlsx so their manual layout values are within openpyxl's limits.
+    Returns how many values were changed."""
+    changed = 0
+
+    def clamp(match):
+        nonlocal changed
+        fixed = _clamp_layout_value(match)
+        changed += fixed != match.group(0)
+        return fixed
+
+    def fix_block(block):
+        return _LAYOUT_VALUE.sub(clamp, block.group(0))
+
+    with zipfile.ZipFile(xlsx_path) as source:
+        entries = [(info, source.read(info)) for info in source.infolist()]
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False, dir=Path(xlsx_path).parent) as tmp:
+        tmp_path = tmp.name
+    with zipfile.ZipFile(tmp_path, "w") as target:
+        for info, data in entries:
+            if re.match(r"xl/charts/chart\d+\.xml$", info.filename):
+                data = _MANUAL_LAYOUT.sub(fix_block, data.decode("utf-8")).encode("utf-8")
+            target.writestr(info, data)
+    shutil.move(tmp_path, xlsx_path)
+    return changed
+
+
+def _can_open(xlsx_path):
+    try:
+        load_workbook(xlsx_path).close()
+        return True
+    except Exception:
+        return False
+
+
+def make_workbook_writable(xlsx_path):
+    """Make sure openpyxl can open the results copy. Only ever changes that copy, never the user's file.
+    Returns None if nothing was needed, otherwise a short note on what was done."""
+    if _can_open(xlsx_path):
+        return None
+    changed = _clamp_chart_layouts(xlsx_path)
+    if _can_open(xlsx_path):
+        return (f"Some charts in this workbook use layout settings the app can't read, so {changed} chart "
+                f"layout value(s) were adjusted in the (app_generated) copy. Your original file is unchanged.")
+    # Last resort: rebuild the copy from the cell values of every sheet
+    sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
+    with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
+        for name, frame in sheets.items():
+            frame.to_excel(writer, sheet_name=name, header=False, index=False)
+    return ("This workbook couldn't be opened for writing, so the (app_generated) copy contains only the "
+            "cell values of its sheets (formatting and existing charts were left out). "
+            "Your original file is unchanged.")
 
 
 def generate_excel_formula(df, start_row):
@@ -117,7 +293,7 @@ def generate_excel_formula(df, start_row):
     return dictOutput
 
 
-def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1):
+def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1, fit_first_column=False):
     # Try to open an existing workbook
     try:
         book = load_workbook(filename)
@@ -168,8 +344,103 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1):
             else:
                 cell.number_format = '0.00'  # 2 decimal places for other columns
 
+    if fit_first_column:
+        # Widen column A so the treatment names fit (never narrows it)
+        longest = max(len(str(v)) for v in [df.columns[0], *df.iloc[:, 0]])
+        width = max(10, round(longest * 0.9, 1))
+        current = sheet.column_dimensions["A"].width or 0
+        sheet.column_dimensions["A"].width = max(current, width)
     book.save(filename)
     return startrow + start_distance + 1, len(df.columns)
+
+
+# ---------- chart colors ----------
+# Each chart series (usually a treatment) keeps the same color in every chart and every run.
+# The mapping is saved in series_colors.json next to this file; new names get the next free color.
+SERIES_COLORS_FILE = Path(__file__).with_name("series_colors.json")
+
+DEFAULT_SERIES_COLORS = {
+    "UTC": "F672F9",
+    "Flupymezotiaz 15": "C55A11",
+    "Flupymezotiaz 22": "00B050",
+    "Dicloromezotiaz 15": "00B0F0",
+    "Dicloromezotiaz 22": "8CF0E9",
+    "Broflanilide 18": "7C35B1",
+    "Broflanilide 25": "404040",
+    "Sparta 80": "ED7D31",
+    "Fluxametamide 40": "A5A5A5",
+    "Isoflualanam 100": "FFD966",
+    "Isoflualanam 200": "2D508F",
+    "Isocycloseram 15": "92D050",
+    "Isocycloseram 30": "FF0000",
+}
+
+# Handed out, in order, to series names that don't have a color yet
+EXTRA_SERIES_COLORS = [
+    "4472C4", "FFC000", "70AD47", "C00000", "5B9BD5", "7F6000", "548235", "002060", "FF99CC", "00CCCC",
+    "996633", "66FF66", "CC99FF", "808000", "FF6600", "008080", "993366", "99CCFF", "333399", "BFBFBF",
+]
+
+# Days (when they are the chart series, in "days in legend" mode) are colored by position:
+# DOT, then each following date. Not saved to series_colors.json, so they never take treatment colors.
+DAY_COLORS = ["4472C4", "FFC000", "70AD47", "C00000", "5B9BD5", "7F6000", "548235", "002060", "FF6600", "993366"]
+
+
+def colors_for_days(count, start=0):
+    return [DAY_COLORS[(start + i) % len(DAY_COLORS)] for i in range(count)]
+
+
+def _series_key(name):
+    return str(name).strip()
+
+
+def load_series_colors():
+    try:
+        with open(SERIES_COLORS_FILE, encoding="utf-8") as f:
+            colors = json.load(f)
+        if isinstance(colors, dict):
+            return colors
+    except (OSError, ValueError):
+        pass
+    return dict(DEFAULT_SERIES_COLORS)
+
+
+def save_series_colors(colors):
+    try:
+        with open(SERIES_COLORS_FILE, "w", encoding="utf-8") as f:
+            json.dump(colors, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass  # read-only install: colors still apply to this run
+
+
+def _next_free_color(used):
+    for color in EXTRA_SERIES_COLORS:
+        if color.upper() not in used:
+            return color
+    # Palette exhausted: spread further hues around the color wheel (golden-angle steps)
+    i = len(used)
+    while True:
+        r, g, b = colorsys.hsv_to_rgb((i * 0.618033988749895) % 1, 0.75, 0.85)
+        color = "%02X%02X%02X" % (int(r * 255), int(g * 255), int(b * 255))
+        if color not in used:
+            return color
+        i += 1
+
+
+def colors_for_series(names):
+    """Return a color (hex, no '#') for each series name, assigning and saving new ones as needed."""
+    colors = load_series_colors()
+    used = {c.upper() for c in colors.values()}
+    changed = False
+    for name in names:
+        key = _series_key(name)
+        if key and key not in colors:
+            colors[key] = _next_free_color(used)
+            used.add(colors[key].upper())
+            changed = True
+    if changed:
+        save_series_colors(colors)
+    return [colors.get(_series_key(name)) for name in names]
 
 
 def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,
@@ -186,30 +457,16 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     # chart.graphical_properties.line.noFill = True
     # chart.graphical_properties.line.prstDash = None
     chart.width = 21
-    h = 0.8
-    w = 0.8
-    x = 0
-    y = 0
-    hl = None
-    if flip_x_y:
-        h = 0.4
-        w = 0.8
-        x = 0
-        y = 0
-        hl = 0.25
 
-    chart.layout = Layout(
-        ManualLayout(
-            x=x, y=y,
-            h=h, w=w
-        )
-    )
-    chart.legend.layout = Layout(
-        ManualLayout(
-            x=0, y=1,
-            w=1, h=hl
-        )
-    )
+    if flip_x_y:
+        # Plot area pinned to the chart's edges (10% from the left, 30% from the top, 80% x 40%),
+        # leaving room for the title above and the legend below. Matches the hand-tuned charts.
+        chart.layout = Layout(ManualLayout(xMode="edge", yMode="edge", x=0.1, y=0.3, w=0.8, h=0.4))
+        chart.legend.overlay = True
+    else:
+        chart.layout = Layout(ManualLayout(x=0, y=0, h=0.8, w=0.8))
+    # Legend in Excel's default bottom position (a manual offset pushes it out of place)
+    chart.legend.layout = None
 
     chart_title_font = openpyxl.drawing.text.Font(typeface='Calibri')
     chart_title_props = CharacterProperties(
@@ -237,6 +494,19 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     # Add data and categories to the chart
     chart.add_data(data_range, from_rows=from_rows, titles_from_data=True)
     chart.set_categories(categories)
+    # Fixed color per series name (same ranges add_data takes the series titles from)
+    if from_rows:
+        series_names = [ws.cell(row=r, column=1).value for r in range(startrow, ws.max_row + 1)]
+    else:
+        series_names = [ws.cell(row=startrow - 1, column=c).value for c in range(column + 1, len_df + 1)]
+    if from_rows:
+        series_colors = colors_for_series(series_names)  # treatments: fixed, saved colors
+    else:
+        # days: by position; the Decrease(%) chart (cropped) starts after DOT, so skip DOT's color
+        series_colors = colors_for_days(len(series_names), start=1 if cropped else 0)
+    for series, color in zip(chart.series, series_colors):
+        if color:
+            series.graphicalProperties = GraphicalProperties(solidFill=color, ln=LineProperties(solidFill=color))
     chart.x_axis.delete = False
     chart.y_axis.delete = False
     chart.y_axis.title = ""
@@ -271,6 +541,20 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
     IncrementedLettersAscii = AsciiOfLetter + len_df + number_of_lines_to_add
     ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow - 1}")
     # Step 8: Save the Excel file
+    wb.save(filename)
+
+
+def write_column_group_labels(filename, sheet_name, row, labels):
+    """Write a label (e.g. "Student's" / "Tukey") above each column that has one; None leaves it blank."""
+    wb = load_workbook(filename)
+    ws = wb[sheet_name]
+    font = Font(name='David', size=12)
+    alignment = Alignment(horizontal='center')
+    for column, text in enumerate(labels, start=1):
+        if text:
+            cell = ws.cell(row=row, column=column, value=text)
+            cell.font = font
+            cell.alignment = alignment
     wb.save(filename)
 
 
