@@ -415,9 +415,7 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             result = messagebox.askokcancel("UTC is not in place","The UTC Column Should Be First, Would You Like To Procced?")
             if not result:
                 return
-        output_path, copy_note = Utils.generate_new_file(self.filename)
-        if copy_note:
-            messagebox.showwarning("Workbook adjusted", copy_note)
+        output_path = Utils.generate_new_file(self.filename)
         # Each selected test gets its own sheet, with its name as the title on top
         for mode in modes:
             text = TEST_MODES[mode]["sheet"]

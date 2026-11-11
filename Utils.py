@@ -197,14 +197,15 @@ def custom_sort_key(val):
 
 def generate_new_file(filename):
     """Return the path of the "(app_generated)" copy the results are written into, creating it if needed.
-    Also returns a note (or None) when the copy had to be changed so it could be opened."""
+    The copy is quietly made openable if needed (see make_workbook_writable)."""
     path = Path(filename)
     output_file = path.with_stem(f"{path.stem}(app_generated)")
     if not Path(output_file).is_file():
         output_path = shutil.copy(filename, output_file)
     else:
         output_path = output_file
-    return output_path, make_workbook_writable(output_path)
+    make_workbook_writable(output_path)
+    return output_path
 
 
 # Chart layout values openpyxl accepts (Excel itself allows more, e.g. a legend dragged below the plot)
@@ -225,18 +226,10 @@ def _clamp_layout_value(match):
 
 
 def _clamp_chart_layouts(xlsx_path):
-    """Rewrite the chart parts of an .xlsx so their manual layout values are within openpyxl's limits.
-    Returns how many values were changed."""
-    changed = 0
-
-    def clamp(match):
-        nonlocal changed
-        fixed = _clamp_layout_value(match)
-        changed += fixed != match.group(0)
-        return fixed
+    """Rewrite the chart parts of an .xlsx so their manual layout values are within openpyxl's limits."""
 
     def fix_block(block):
-        return _LAYOUT_VALUE.sub(clamp, block.group(0))
+        return _LAYOUT_VALUE.sub(_clamp_layout_value, block.group(0))
 
     with zipfile.ZipFile(xlsx_path) as source:
         entries = [(info, source.read(info)) for info in source.infolist()]
@@ -248,7 +241,6 @@ def _clamp_chart_layouts(xlsx_path):
                 data = _MANUAL_LAYOUT.sub(fix_block, data.decode("utf-8")).encode("utf-8")
             target.writestr(info, data)
     shutil.move(tmp_path, xlsx_path)
-    return changed
 
 
 def _can_open(xlsx_path):
@@ -260,22 +252,17 @@ def _can_open(xlsx_path):
 
 
 def make_workbook_writable(xlsx_path):
-    """Make sure openpyxl can open the results copy. Only ever changes that copy, never the user's file.
-    Returns None if nothing was needed, otherwise a short note on what was done."""
+    """Make sure openpyxl can open the results copy. Only ever changes that copy, never the user's file."""
     if _can_open(xlsx_path):
-        return None
-    changed = _clamp_chart_layouts(xlsx_path)
+        return
+    _clamp_chart_layouts(xlsx_path)
     if _can_open(xlsx_path):
-        return (f"Some charts in this workbook use layout settings the app can't read, so {changed} chart "
-                f"layout value(s) were adjusted in the (app_generated) copy. Your original file is unchanged.")
+        return
     # Last resort: rebuild the copy from the cell values of every sheet
     sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
     with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
         for name, frame in sheets.items():
             frame.to_excel(writer, sheet_name=name, header=False, index=False)
-    return ("This workbook couldn't be opened for writing, so the (app_generated) copy contains only the "
-            "cell values of its sheets (formatting and existing charts were left out). "
-            "Your original file is unchanged.")
 
 
 def generate_excel_formula(df, start_row):
