@@ -21,7 +21,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Not used by the app (only optional plotting in statsmodels). Leaving it out keeps the app smaller
+    # and avoids matplotlib 3.9.1's broken Windows DLL, which made PyInstaller fail on Windows.
+    excludes=['matplotlib'],
     noarchive=False,
     optimize=0,
 )
