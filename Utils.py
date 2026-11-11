@@ -1,5 +1,6 @@
 import colorsys
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -343,8 +344,28 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1, fit_
 
 # ---------- chart colors ----------
 # Each chart series (usually a treatment) keeps the same color in every chart and every run.
-# The mapping is saved in series_colors.json next to this file; new names get the next free color.
-SERIES_COLORS_FILE = Path(__file__).with_name("series_colors.json")
+# New names get the next free color and are saved, so they keep it.
+#  - Running from source: series_colors.json next to this file (the one in the repo).
+#  - Packaged app (PyInstaller .exe): the repo's file is bundled as the starting colors and copied
+#    to the user's app-data folder (e.g. %APPDATA%\AgrunomProject on Windows), where changes persist.
+#    The bundle itself is unpacked to a temporary folder that's deleted on exit, so it can't be written to.
+BUNDLED_SERIES_COLORS_FILE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "series_colors.json"
+
+
+def user_data_dir():
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "AgrunomProject"
+
+
+if getattr(sys, "frozen", False):
+    SERIES_COLORS_FILE = user_data_dir() / "series_colors.json"
+else:
+    SERIES_COLORS_FILE = Path(__file__).with_name("series_colors.json")
 
 DEFAULT_SERIES_COLORS = {
     "UTC": "F672F9",
@@ -381,23 +402,38 @@ def _series_key(name):
     return str(name).strip()
 
 
-def load_series_colors():
+def _read_colors(path):
     try:
-        with open(SERIES_COLORS_FILE, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             colors = json.load(f)
-        if isinstance(colors, dict):
-            return colors
+        return colors if isinstance(colors, dict) else None
     except (OSError, ValueError):
-        pass
-    return dict(DEFAULT_SERIES_COLORS)
+        return None
+
+
+def load_series_colors():
+    colors = _read_colors(SERIES_COLORS_FILE)
+    # Starting colors: the bundled file (packaged app), else the built-in defaults.
+    # Names the user's file doesn't have yet are added from them (e.g. after an app update).
+    starting = _read_colors(BUNDLED_SERIES_COLORS_FILE) or dict(DEFAULT_SERIES_COLORS)
+    if colors is None:
+        colors = dict(starting)
+        save_series_colors(colors)  # first run of the packaged app: create the user's copy
+        return colors
+    missing = {name: color for name, color in starting.items() if name not in colors}
+    if missing:
+        colors.update(missing)
+        save_series_colors(colors)
+    return colors
 
 
 def save_series_colors(colors):
     try:
+        Path(SERIES_COLORS_FILE).parent.mkdir(parents=True, exist_ok=True)
         with open(SERIES_COLORS_FILE, "w", encoding="utf-8") as f:
             json.dump(colors, f, ensure_ascii=False, indent=2)
     except OSError:
-        pass  # read-only install: colors still apply to this run
+        pass  # not writable: colors still apply to this run
 
 
 def _next_free_color(used):
