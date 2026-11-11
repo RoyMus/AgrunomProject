@@ -197,16 +197,17 @@ def custom_sort_key(val):
 
 
 def generate_new_file(filename):
-    """Return the path of the "(app_generated)" copy the results are written into, creating it if needed.
-    The copy is quietly made openable if needed (see make_workbook_writable)."""
+    """Return (path, open workbook) of the "(app_generated)" copy the results are written into,
+    creating the copy if needed. The copy is quietly made openable if needed (see make_workbook_writable).
+    All results are written into the returned workbook in memory and saved once at the end:
+    re-opening and re-saving the whole file for every table/chart was what made the calculation slow."""
     path = Path(filename)
     output_file = path.with_stem(f"{path.stem}(app_generated)")
     if not Path(output_file).is_file():
         output_path = shutil.copy(filename, output_file)
     else:
         output_path = output_file
-    make_workbook_writable(output_path)
-    return output_path
+    return output_path, make_workbook_writable(output_path)
 
 
 # Chart layout values openpyxl accepts (Excel itself allows more, e.g. a legend dragged below the plot)
@@ -244,26 +245,29 @@ def _clamp_chart_layouts(xlsx_path):
     shutil.move(tmp_path, xlsx_path)
 
 
-def _can_open(xlsx_path):
+def _try_open(xlsx_path):
     try:
-        load_workbook(xlsx_path).close()
-        return True
+        return load_workbook(xlsx_path)
     except Exception:
-        return False
+        return None
 
 
 def make_workbook_writable(xlsx_path):
-    """Make sure openpyxl can open the results copy. Only ever changes that copy, never the user's file."""
-    if _can_open(xlsx_path):
-        return
+    """Open the results copy with openpyxl, repairing it first if needed, and return the workbook.
+    Only ever changes that copy, never the user's file."""
+    book = _try_open(xlsx_path)
+    if book is not None:
+        return book
     _clamp_chart_layouts(xlsx_path)
-    if _can_open(xlsx_path):
-        return
+    book = _try_open(xlsx_path)
+    if book is not None:
+        return book
     # Last resort: rebuild the copy from the cell values of every sheet
     sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
     with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
         for name, frame in sheets.items():
             frame.to_excel(writer, sheet_name=name, header=False, index=False)
+    return load_workbook(xlsx_path)
 
 
 def generate_excel_formula(df, start_row):
@@ -281,28 +285,33 @@ def generate_excel_formula(df, start_row):
     return dictOutput
 
 
-def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1, fit_first_column=False):
-    # Try to open an existing workbook
-    try:
-        book = load_workbook(filename)
-        writer = pd.ExcelWriter(filename, engine='openpyxl', mode='a', if_sheet_exists='overlay')
-        writer.workbook = book
-        if sheet_name in writer.workbook.sheetnames:
-            startrow = writer.workbook[sheet_name].max_row
-        else:
-            startrow = 0
-    except FileNotFoundError:
-        # File does not exist yet, create a new one
-        writer = pd.ExcelWriter(filename, engine='openpyxl', mode='w')
+def _excel_value(value):
+    """A DataFrame value as written to a cell (what pandas' to_excel writes: missing -> empty, numpy -> Python)."""
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return None
+    if hasattr(value, "item"):  # numpy scalar
+        return value.item()
+    return value
+
+
+def append_df_to_excel(book, df, sheet_name='Sheet1', start_distance=1, fit_first_column=False):
+    """Write df (with a header row) below what's already on the sheet of the open workbook `book`."""
+    if sheet_name in book.sheetnames:
+        sheet = book[sheet_name]
+        startrow = sheet.max_row
+    else:
+        sheet = book.create_sheet(sheet_name)
         startrow = 0
-    # Write the dataframe to the Excel file
     if startrow == 0:
         start_distance = 2
-    df.to_excel(writer, sheet_name=sheet_name, startrow=startrow + start_distance, index=False, header=True)
-    writer.close()
-    # Reload the workbook and the sheet to apply formatting
-    book = load_workbook(filename)
-    sheet = book[sheet_name]
+    header_row = startrow + start_distance + 1
+    for column, name in enumerate(df.columns, start=1):
+        sheet.cell(row=header_row, column=column, value=_excel_value(name))
+    for row_offset, values in enumerate(df.itertuples(index=False, name=None), start=1):
+        for column, value in enumerate(values, start=1):
+            value = _excel_value(value)
+            if value is not None:
+                sheet.cell(row=header_row + row_offset, column=column, value=value)
 
     # Apply font and borders
     font = Font(name='David', size=12)
@@ -338,8 +347,7 @@ def append_df_to_excel(filename, df, sheet_name='Sheet1', start_distance=1, fit_
         width = max(10, round(longest * 0.9, 1))
         current = sheet.column_dimensions["A"].width or 0
         sheet.column_dimensions["A"].width = max(current, width)
-    book.save(filename)
-    return startrow + start_distance + 1, len(df.columns)
+    return header_row, len(df.columns)
 
 
 # ---------- chart colors ----------
@@ -466,10 +474,9 @@ def colors_for_series(names):
     return [colors.get(_series_key(name)) for name in names]
 
 
-def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df, column, sheet_name, cropped,
+def append_chart_to_excel_openpy(y_axis_title, name, wb, startrow, len_df, column, sheet_name, cropped,
                                  flip_x_y=False):
-    # Step 1: Load the existing workbook and worksheet
-    wb = load_workbook(filename)
+    # Step 1: The worksheet of the open workbook
     ws = wb[sheet_name]
 
     # Step 5: Create a BarChart object
@@ -563,13 +570,10 @@ def append_chart_to_excel_openpy(y_axis_title, name, filename, startrow, len_df,
         number_of_lines_to_add += 1
     IncrementedLettersAscii = AsciiOfLetter + len_df + number_of_lines_to_add
     ws.add_chart(chart, f"{chr(IncrementedLettersAscii)}{startrow - 1}")
-    # Step 8: Save the Excel file
-    wb.save(filename)
 
 
-def write_column_group_labels(filename, sheet_name, row, labels):
+def write_column_group_labels(wb, sheet_name, row, labels):
     """Write a label (e.g. "Student's" / "Tukey") above each column that has one; None leaves it blank."""
-    wb = load_workbook(filename)
     ws = wb[sheet_name]
     font = Font(name='David', size=12)
     alignment = Alignment(horizontal='center')
@@ -578,28 +582,19 @@ def write_column_group_labels(filename, sheet_name, row, labels):
             cell = ws.cell(row=row, column=column, value=text)
             cell.font = font
             cell.alignment = alignment
-    wb.save(filename)
 
 
-def write_text_to_excel(filename, text, sheet_name='Sheet1'):
-    # Try to open an existing workbook
-    try:
-        wb = load_workbook(filename)
-        if sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-        else:
-            ws = wb.create_sheet(sheet_name)
-    except FileNotFoundError:
-        wb = Workbook()
-        ws = wb.active
-        ws.title = sheet_name
+def write_text_to_excel(wb, text, sheet_name='Sheet1'):
+    if sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+    else:
+        ws = wb.create_sheet(sheet_name)
     font = Font(name='David', size=12, bold=True)
     # Find the next empty row
     start_row = ws.max_row + 2
     # Write the text to the first cell in the next empty row
     cell = ws.cell(row=start_row, column=1, value=text)
     cell.font = font
-    wb.save(filename)
 
 
 # Function to find the first row with the date format

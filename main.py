@@ -7,7 +7,8 @@ import statsmodels.api as sm
 from scipy import stats
 from scipy.stats import studentized_range
 from statsmodels.formula.api import ols
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from statsmodels.stats.multicomp import MultiComparison
+from statsmodels.sandbox.stats.multicomp import GroupsStats, varcorrection_pairs_unbalanced
 import CalcUtils
 import customtkinter
 import Utils
@@ -20,6 +21,28 @@ from functools import lru_cache
 @lru_cache(maxsize=None)
 def _tukey_q_critical(k, df_error, alpha=0.05):
     return studentized_range.ppf(1 - alpha, k, df_error)
+
+
+def _tukey_hsd_reject(values, groups, alpha=0.05):
+    """The group1/group2/reject table of statsmodels' pairwise_tukeyhsd, computed the same way
+    (statsmodels.sandbox.stats.multicomp.tukeyhsd: reject = studentized range > q_crit), but without the
+    adjusted p-values, which the letters don't use. Those p-values are a slow numerical integration per pair
+    and were almost all of the time of a calculation without blocks."""
+    comparison = MultiComparison(values, groups)
+    group_stats = GroupsStats(np.column_stack([comparison.data, comparison.groupintlab]), useranks=False)
+    means = group_stats.groupmean
+    nobs = group_stats.groupnobs
+    n_means = len(means)
+    var_ = np.var(group_stats.groupdemean(), ddof=n_means)
+    var_pairs = var_ * varcorrection_pairs_unbalanced(nobs, srange=True)
+    df_total = np.sum(nobs - 1)
+    idx1, idx2 = np.triu_indices(n_means, 1)
+    meandiffs = (means - means[:, None])[idx1, idx2]
+    with np.errstate(divide="ignore", invalid="ignore"):  # 0/0 when two groups are identical -> not rejected
+        st_range = np.abs(meandiffs) / np.sqrt(var_pairs)[idx1, idx2]
+    reject = st_range > _tukey_q_critical(n_means, float(df_total), alpha)
+    labels = comparison.groupsunique
+    return pd.DataFrame({"group1": labels[idx1], "group2": labels[idx2], "reject": reject})
 
 
 # Selectable tests: key -> dropdown label and output sheet name (Excel sheet names are max 31 chars)
@@ -365,12 +388,8 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                     tukey_results.append([treatments[i], treatments[j], reject])
             tukey_df = pd.DataFrame(tukey_results, columns=['group1', 'group2', 'reject'])
         else:
-            # Perform Tukey HSD test
-            tukey_hsd = pairwise_tukeyhsd(endog=df['Value'],
-                                          groups=df['Treatment'],
-                                          alpha=0.05)
-            tukey_df = pd.DataFrame(data=tukey_hsd._results_table.data[1:],
-                                    columns=tukey_hsd._results_table.data[0])
+            # Tukey HSD (Tukey-Kramer), the same decisions as pairwise_tukeyhsd(df['Value'], df['Treatment'], 0.05)
+            tukey_df = _tukey_hsd_reject(df['Value'], df['Treatment'])
         tukey_dictionary = dict()
         for treatment in treatment_means:
             tukey_dictionary[treatment] = dict()
@@ -415,11 +434,12 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             result = messagebox.askokcancel("UTC is not in place","The UTC Column Should Be First, Would You Like To Procced?")
             if not result:
                 return
-        output_path = Utils.generate_new_file(self.filename)
+        # The results copy is opened once, filled in memory and saved once at the end (much faster)
+        output_path, book = Utils.generate_new_file(self.filename)
         # Each selected test gets its own sheet, with its name as the title on top
         for mode in modes:
             text = TEST_MODES[mode]["sheet"]
-            Utils.write_text_to_excel(output_path, text, text)
+            Utils.write_text_to_excel(book, text, text)
         need_t = any(mode in ("t", "combined") for mode in modes)
         need_tukey = any(mode in ("tukey", "combined") for mode in modes)
         for label in items:
@@ -494,29 +514,32 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
                 if mode == "combined":
                     groups = [combined_groups.get(key) for key in mode_df.columns]
                     mode_df.columns = [combined_headers.get(key, key) for key in mode_df.columns]
-                    header_row, _ = Utils.append_df_to_excel(output_path, mode_df, sheet, start_distance=3)
-                    Utils.write_column_group_labels(output_path, sheet, header_row - 1, groups)
+                    header_row, _ = Utils.append_df_to_excel(book, mode_df, sheet, start_distance=3)
+                    Utils.write_column_group_labels(book, sheet, header_row - 1, groups)
                 else:
-                    Utils.append_df_to_excel(output_path, mode_df, sheet)
+                    Utils.append_df_to_excel(book, mode_df, sheet)
             # Graphs only use the means, so they're generated once no matter how many tests were chosen
             self.output_df = pd.DataFrame(means_dict)
             self.output_df.insert(0, label, treatment_means.keys())
-            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים", start_distance=4,
+            row, df_len = Utils.append_df_to_excel(book, self.output_df, "גרפים", start_distance=4,
                                                   fit_first_column=True)
 
             if "שכיחות" in label:
-                Utils.append_chart_to_excel_openpy("%", f"Frequncy of {label} per leaf in average", output_path, row,
+                Utils.append_chart_to_excel_openpy("%", f"Frequncy of {label} per leaf in average", book, row,
                                                    df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
                 continue
-            Utils.append_chart_to_excel_openpy(label, f"Number of {label} per leaf in average", output_path, row,
+            Utils.append_chart_to_excel_openpy(label, f"Number of {label} per leaf in average", book, row,
                                                df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
             output_dict = Utils.generate_excel_formula(self.output_df,row)
             formulated_df = pd.DataFrame(output_dict)
             formulated_df.iloc[:,0] = self.output_df.iloc[1:,0]
             formulated_df = formulated_df.rename(columns={"DOT":self.output_df.columns[0]})
-            row, df_len = Utils.append_df_to_excel(output_path, formulated_df, "גרפים", start_distance=4)
-            Utils.append_chart_to_excel_openpy("%", f"Decrease(%) of {label} as correlation to control", output_path,
+            row, df_len = Utils.append_df_to_excel(book, formulated_df, "גרפים", start_distance=4)
+            Utils.append_chart_to_excel_openpy("%", f"Decrease(%) of {label} as correlation to control", book,
                                                row + 1, df_len, 1, "גרפים", cropped=True, flip_x_y=flip_xy)
+        self.set_status("Saving…")
+        self.root.update_idletasks()
+        book.save(output_path)
         self.set_status(f"Done. Results saved to {Path(output_path).name}")
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
