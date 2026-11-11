@@ -20,7 +20,7 @@ a = Analysis(
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['pyi_rth_stdio.py'],  # fixes the startup crash of the windowed .exe (no console)
     # Not used by the app (only optional plotting in statsmodels). Leaving it out keeps the app smaller
     # and avoids matplotlib 3.9.1's broken Windows DLL, which made PyInstaller fail on Windows.
     excludes=['matplotlib'],
