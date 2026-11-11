@@ -501,22 +501,22 @@ class AgrunomProjectApplication(customtkinter.CTkFrame):
             # Graphs only use the means, so they're generated once no matter how many tests were chosen
             self.output_df = pd.DataFrame(means_dict)
             self.output_df.insert(0, label, treatment_means.keys())
-            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "1גרפים", start_distance=4,
+            row, df_len = Utils.append_df_to_excel(output_path, self.output_df, "גרפים", start_distance=4,
                                                   fit_first_column=True)
 
             if "שכיחות" in label:
                 Utils.append_chart_to_excel_openpy("%", f"Frequncy of {label} per leaf in average", output_path, row,
-                                                   df_len, 1, "1גרפים", cropped=False, flip_x_y=flip_xy)
+                                                   df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
                 continue
             Utils.append_chart_to_excel_openpy(label, f"Number of {label} per leaf in average", output_path, row,
-                                               df_len, 1, "1גרפים", cropped=False, flip_x_y=flip_xy)
+                                               df_len, 1, "גרפים", cropped=False, flip_x_y=flip_xy)
             output_dict = Utils.generate_excel_formula(self.output_df,row)
             formulated_df = pd.DataFrame(output_dict)
             formulated_df.iloc[:,0] = self.output_df.iloc[1:,0]
             formulated_df = formulated_df.rename(columns={"DOT":self.output_df.columns[0]})
-            row, df_len = Utils.append_df_to_excel(output_path, formulated_df, "1גרפים", start_distance=4)
+            row, df_len = Utils.append_df_to_excel(output_path, formulated_df, "גרפים", start_distance=4)
             Utils.append_chart_to_excel_openpy("%", f"Decrease(%) of {label} as correlation to control", output_path,
-                                               row + 1, df_len, 1, "1גרפים", cropped=True, flip_x_y=flip_xy)
+                                               row + 1, df_len, 1, "גרפים", cropped=True, flip_x_y=flip_xy)
         self.set_status(f"Done. Results saved to {Path(output_path).name}")
         result = messagebox.askokcancel("Calculation finished", "Would you like to open the file directory?")
         if result:
